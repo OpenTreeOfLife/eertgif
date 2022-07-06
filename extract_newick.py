@@ -5,6 +5,7 @@ from pdfminer.high_level import extract_pages, LAParams
 from pdfminer.layout import LTChar, LTFigure, LTCurve
 from pdfminer.utils import fsplit
 from math import sqrt
+from enum import IntEnum
 
 # Includes some code from pdfminer layout.py
 
@@ -16,13 +17,66 @@ def debug(msg):
         sys.stderr.write(f"{msg}\n")
 
 
+class Direction(IntEnum):
+    SAME = 0
+    NORTH = 0x01
+    NORTHEAST = 0x05
+    EAST = 0x04
+    SOUTHEAST = 0x06
+    SOUTH = 0x02
+    SOUTHWEST = 0x0A
+    WEST = 0x08
+    NORTHWEST = 0x09
+
+
 class Node(object):
     def __init__(self, x, y):
+        debug(f"created node at {(x, y)}")
         self.x, self.y = x, y
         self.edges = set()
 
     def add_edge(self, edge):
         self.edges.add(edge)
+
+    def __str__(self):
+        return f"Node({self.x}, {self.y})"
+
+    __repr__ = __str__
+
+    def add_connected(self, nd_set, taboo=None):
+        seen = taboo if taboo is not None else set()
+        seen.add(self)
+        nd_set.add(self)
+        for edge in self.edges:
+            for n in [edge.nd1, edge.nd2]:
+                if (n is not self) and (n not in seen):
+                    n.add_connected(nd_set, taboo=seen)
+
+    def adjacent(self):
+        return [i.other_node(self) for i in self.edges]
+
+    @property
+    def dir_from_adj(self):
+        assert len(self.edges) == 1
+        e = next(iter(self.edges))
+        other = e.other_node(self)
+        if other.x == self.x:
+            if other.y == self.y:
+                return Direction.SAME
+            if other.y < self.x:
+                return Direction.NORTH
+            return Direction.SOUTH
+        if other.x < self.x:
+            if other.y == self.y:
+                return Direction.EAST
+            if other.y < self.x:
+                return Direction.NORTHEAST
+            return Direction.SOUTHEAST
+        if other.y == self.y:
+            return Direction.WEST
+        if other.y < self.x:
+            return Direction.NORTHWEST
+        return Direction.SOUTHWEST
 
 
 class Edge(object):
@@ -30,6 +84,17 @@ class Edge(object):
         self.curve, self.nd1, self.nd2 = curve, nd1, nd2
         nd1.add_edge(self)
         nd2.add_edge(self)
+
+    def __str__(self):
+        return f"Edge({self.nd1} <==> {self.nd2})"
+
+    __repr__ = __str__
+
+    def other_node(self, nd):
+        if nd is self.nd1:
+            return self.nd2
+        assert nd is self.nd2
+        return self.nd1
 
 
 def calc_dist(pt1, pt2):
@@ -42,6 +107,9 @@ class PlanarContainer(object):
     def __init__(self):
         self.by_x = []
         self._all_nodes = []
+
+    def iter_nodes(self):
+        return iter(self._all_nodes)
 
     def find_closest(self, point, tol):
         ptx, pty = point
@@ -143,11 +211,89 @@ class GraphFromEdges(object):
         nd = self.nodes.new_at(point)
         return nd, True, True
 
+    def build_forest(self):
+        forest = Forest(self)
+        included = set()
+        for nd in self.nodes.iter_nodes():
+            if nd in included:
+                continue
+            nd_set = set()
+            forest.components.append(nd_set)
+            nd.add_connected(nd_set)
+            assert not included.intersection(nd_set)
+            included.update(nd_set)
+        return forest
+
+
+class Forest(object):
+    def __init__(self, graph):
+        self.components = []
+        self.graph = graph
+        self.trees = []
+
+    def interpret_as_tree(self, idx, text_lines):
+        comp = self.components[idx]
+        while len(self.trees) <= idx:
+            self.trees.append(None)
+        t = self.trees[idx]
+        if t is not None:
+            return t
+        t = PhyloTree(connected_nodes=comp, forest=self, text_lines=text_lines)
+        self.trees[idx] = t
+        return t
+
+
+class PhyloTree(object):
+    def __init__(self, connected_nodes=None, forest=None, text_lines=None):
+        self.forest = forest
+        self.used_text = set()
+        internals, externals = [], []
+        for nd in connected_nodes:
+            cont = externals if len(nd.edges) == 1 else internals
+            cont.append(nd)
+        north, east, south, west = [], [], [], []
+        for ext in externals:
+            d = ext.dir_from_adj
+            # print(ext, "is", d, "from adjacent node, ", ext.adjacent()[0])
+            if d & Direction.NORTH:
+                north.append(d)
+            if d & Direction.EAST:
+                east.append(d)
+            if d & Direction.SOUTH:
+                south.append(d)
+            if d & Direction.WEST:
+                west.append(d)
+        print(len(north), "nodes to the north of their neighbor")
+        print(len(east), "nodes to the east of their neighbor")
+        print(len(south), "nodes to the south of their neighbor")
+        print(len(west), "nodes to the west of their neighbor")
+        nblob = self._try_as_tips_to(Direction.NORTH, internals, externals, text_lines)
+        eblob = self._try_as_tips_to(Direction.EAST, internals, externals, text_lines)
+        sblob = self._try_as_tips_to(Direction.SOUTH, internals, externals, text_lines)
+        wblob = self._try_as_tips_to(Direction.WEST, internals, externals, text_lines)
+        blob_list = [(i[0], n, i) for n, i in enumerate([eblob, nblob, sblob, wblob])]
+        blob_list.sort()
+        best_blob = blob_list[0]
+        self.tension_score = best_blob[0]
+        self.root = best_blob[1]
+        self.used_text.update(best_blob[2])
+        self.num_tips = best_blob[3]
+        s
+
+    def _try_as_tips_to(self, tip_dir, internals, externals, text_lines):
+        pass
+
 
 def _analyze_text_and_curves(text_lines, curves):
     graph = GraphFromEdges()
     for curve in curves:
         graph.add_curve(curve)
+    forest = graph.build_forest()
+    extra_lines = set(text_lines)
+    for n, c in enumerate(forest.components):
+        if len(c) > 4:
+            tree = forest.interpret_as_tree(n, text_lines)
+            extra_lines = extra_lines.difference(tree.used_text)
 
 
 def analyze_figure(fig, params=None):
