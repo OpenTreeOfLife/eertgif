@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-from pdfminer.high_level import (extract_pages, LAParams, extract_text, )
+from io import StringIO
+from pdfminer.high_level import (extract_pages,
+                                 LAParams,
+                                 extract_text,
+                                 extract_text_to_fp)
 from pdfminer.layout import (LTChar, LTFigure, )
 from pdfminer.utils import fsplit
 import sys
@@ -18,11 +22,15 @@ def analyze_figure(fig, params=None):
     (textobjs, otherobjs) = fsplit(lambda obj: isinstance(obj, LTChar), fig)
     textlines = list(fig.group_objects(params, textobjs))
     for line in textlines:
-        print(line)
+        print(line, line.__dict__)
         # for char in line:
         #     print(char)
     for obj in otherobjs:
-        print(obj)
+        print(obj, obj.__dict__)
+
+
+
+
 def main(fp):
     params = LAParams()
     for page_layout in extract_pages(fp):
