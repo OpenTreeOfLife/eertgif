@@ -1,25 +1,24 @@
 #!/usr/bin/env python3
-from io import StringIO
-from pdfminer.high_level import (extract_pages,
-                                 LAParams,
-                                 extract_text,
-                                 extract_text_to_fp)
-from pdfminer.layout import (LTChar, LTFigure, )
-from pdfminer.utils import fsplit
 import sys
+
+from pdfminer.high_level import extract_pages, LAParams
+from pdfminer.layout import LTChar, LTFigure
+from pdfminer.utils import fsplit
 
 # Includes some code from pdfminer layout.py
 
 VERBOSE = True
+
+
 def debug(msg):
     if VERBOSE:
-        sys.stderr.write("{msg}\n")
+        sys.stderr.write(f"{msg}\n")
 
 
 def analyze_figure(fig, params=None):
     if params is None:
         params = LAParams()
-    (textobjs, otherobjs) = fsplit(lambda obj: isinstance(obj, LTChar), fig)
+    (textobjs, otherobjs) = fsplit(lambda o: isinstance(o, LTChar), fig)
     textlines = list(fig.group_objects(params, textobjs))
     for line in textlines:
         print(line, line.__dict__)
@@ -29,10 +28,8 @@ def analyze_figure(fig, params=None):
         print(obj, obj.__dict__)
 
 
-
-
 def main(fp):
-    params = LAParams()
+    # params = LAParams()
     for page_layout in extract_pages(fp):
         for element in page_layout:
             if isinstance(element, LTFigure):
@@ -40,7 +37,7 @@ def main(fp):
             else:
                 debug(f"Skipping non-figure {element}")
             # for sub in element:
-            #     
+            #
             #     try:
             #         for subsub in sub:
             #             print(f"    subsub = {subsub}")
@@ -48,6 +45,5 @@ def main(fp):
             #         pass
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main(sys.argv[1])
