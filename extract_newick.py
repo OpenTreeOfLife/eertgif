@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+from collections import namedtuple
 from typing import List, Set, Tuple, Union
 from pdfminer.high_level import extract_pages, LAParams
 from pdfminer.layout import LTChar, LTFigure, LTCurve, LTText
@@ -32,6 +33,49 @@ class Direction(IntEnum):
 
 
 CARDINAL = (Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST)
+
+################################################################################
+# Code for Pt and PointMap from Ned Batchelder
+#   https://nedbatchelder.com/blog/201707/finding_fuzzy_floats.html
+# "I don’t have a formal license for most of this code. I post it here in the
+# spirit of sharing. Use it for what you will. " https://nedbatchelder.com/code
+class Pt(namedtuple("Pt", "x")):
+    # no need for special __eq__ or __hash__
+    pass
+
+
+class PointMap:
+    def __init__(self):
+        self._items = {}
+        self._rounded = {}
+
+    ROUND_DIGITS = 6
+    JITTERS = [0, 0.5 * 10 ** -ROUND_DIGITS]
+
+    def _round(self, pt, jitter):
+        return Pt(round(pt.x + jitter, ndigits=self.ROUND_DIGITS))
+
+    def __getitem__(self, pt):
+        val = self._items.get(pt)
+        if val is not None:
+            return val
+
+        for jitter in self.JITTERS:
+            pt_rnd = self._round(pt, jitter)
+            pt0 = self._rounded.get(pt_rnd)
+            if pt0 is not None:
+                return self._items[pt0]
+
+        raise KeyError(pt)
+
+    def __setitem__(self, pt, val):
+        self._items[pt] = val
+        for jitter in self.JITTERS:
+            pt_rnd = self._round(pt, jitter)
+            self._rounded[pt_rnd] = pt
+
+
+################################################################################
 
 
 class Node(object):
