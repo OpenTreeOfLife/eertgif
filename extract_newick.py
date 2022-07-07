@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import sys
+from typing import List, Set, Tuple, Union
 from pdfminer.high_level import extract_pages, LAParams
-from pdfminer.layout import LTChar, LTFigure, LTCurve
+from pdfminer.layout import LTChar, LTFigure, LTCurve, LTText
 from pdfminer.utils import fsplit, Point, Rect
 from math import sqrt
 from enum import IntEnum
@@ -35,11 +36,11 @@ CARDINAL = (Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST)
 
 class Node(object):
     def __init__(self, x: float = None, y: float = None, loc: Point = None):
-        debug(f"created node at {(x, y)}")
+        # debug(f"created node at {(x, y)}")
         if loc is None:
             assert x is not None
             assert y is not None
-            self.loc = Point(x, y)
+            self.loc = (x, y)
         else:
             self.loc = loc
         self.edges = set()
@@ -97,17 +98,17 @@ class Node(object):
 
 
 class Edge(object):
-    def __init__(self, curve, nd1, nd2):
+    def __init__(self, curve: LTCurve, nd1: Node, nd2: Node):
         self.curve, self.nd1, self.nd2 = curve, nd1, nd2
         nd1.add_edge(self)
         nd2.add_edge(self)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Edge({self.nd1} <==> {self.nd2})"
 
     __repr__ = __str__
 
-    def other_node(self, nd):
+    def other_node(self, nd: Node) -> Node:
         if nd is self.nd1:
             return self.nd2
         assert nd is self.nd2
@@ -128,7 +129,7 @@ class PlanarContainer(object):
     def iter_nodes(self):
         return iter(self._all_nodes)
 
-    def find_closest(self, point, tol):
+    def find_closest(self, point: Point, tol: float) -> Union[None, Node]:
         ptx, pty = point
         rows = self.find_closest_rows(ptx, tol)
         if not rows:
@@ -143,7 +144,7 @@ class PlanarContainer(object):
                     min_el = el
         return min_el
 
-    def find_exact(self, point):
+    def find_exact(self, point: Point) -> Union[None, Node]:
         ptx, pty = point
         row = self.find_row_exact(ptx)
         if row is None:
@@ -155,7 +156,7 @@ class PlanarContainer(object):
                 break
         return None
 
-    def find_row_exact(self, x):
+    def find_row_exact(self, x: float) -> Union[None, List[Node]]:
         for row in self.by_x:
             if row[0].x == x:
                 return row
@@ -163,7 +164,7 @@ class PlanarContainer(object):
                 break
         return None
 
-    def find_closest_rows(self, x, tol):
+    def find_closest_rows(self, x: float, tol: float) -> List[List[Node]]:
         by_dist = []
         for n, row in enumerate(self.by_x):
             dist = abs(row[0].x - x)
@@ -172,7 +173,7 @@ class PlanarContainer(object):
         by_dist.sort()
         return [i[-1] for i in by_dist]
 
-    def new_at(self, pt):
+    def new_at(self, pt: Point) -> Node:
         ptx = pt[0]
         pty = pt[1]
         dest_row = None
@@ -209,14 +210,17 @@ class GraphFromEdges(object):
         self.edges = set()
         self.tol = 0.01
 
-    def add_curve(self, curve):
+    def add_curve(self, curve: LTCurve) -> Edge:
         pt1, pt2 = curve.pts[0], curve.pts[-1]
         nd1 = self.find_or_insert_node(pt1)[0]
         nd2 = self.find_or_insert_node(pt2)[0]
         edge = Edge(curve, nd1, nd2)
         self.edges.add(edge)
+        return edge
 
-    def find_or_insert_node(self, point, tol=None):
+    def find_or_insert_node(
+        self, point: Point, tol: float = None
+    ) -> Tuple[Node, bool, bool]:
         """Returns (node, was_inserted, is_exact)"""
         t = tol if tol is not None else self.tol
         nd = self.nodes.find_exact(point)
@@ -228,7 +232,7 @@ class GraphFromEdges(object):
         nd = self.nodes.new_at(point)
         return nd, True, True
 
-    def build_forest(self):
+    def build_forest(self) -> Forest:
         forest = Forest(self)
         included = set()
         for nd in self.nodes.iter_nodes():
@@ -243,12 +247,12 @@ class GraphFromEdges(object):
 
 
 class Forest(object):
-    def __init__(self, graph):
+    def __init__(self, graph: GraphFromEdges):
         self.components = []
         self.graph = graph
         self.trees = []
 
-    def interpret_as_tree(self, idx, text_lines):
+    def interpret_as_tree(self, idx: int, text_lines: List[str]) -> PhyloTree:
         comp = self.components[idx]
         while len(self.trees) <= idx:
             self.trees.append(None)
@@ -261,7 +265,12 @@ class Forest(object):
 
 
 class PhyloTree(object):
-    def __init__(self, connected_nodes=None, forest=None, text_lines=None):
+    def __init__(
+        self,
+        connected_nodes: Set[Node] = None,
+        forest: Forest = None,
+        text_lines: List[LTText] = None,
+    ):
         self.forest = forest
         self.used_text = set()
         int_nds, ext_nds = [], []
@@ -273,7 +282,18 @@ class PhyloTree(object):
             ly = min(ly, nd.y)
             hx = max(hx, nd.x)
             hy = max(hy, nd.y)
-        nodes_bbox = ((lx, ly),)
+        nodes_bbox = (lx, ly, hx, hy)
+        lx, ly, hx, hy = float("inf"), float("inf"), float("-inf"), float("-inf")
+        th, tw = [], []
+        for ltline in text_lines:
+            th.append(ltline.height)
+            tw.append(ltline.width)
+            lbb = ltline.bbox
+            lx = min(lx, lbb[0])
+            ly = min(ly, lbb[1])
+            hx = max(hx, lbb[2])
+            hy = max(hy, lbb[3])
+        text_bbox = (lx, ly, hx, hy)
         # by_dir = [self._try_as_tips_to(i, int_nds, ext_nds, text_lines) for i in CARDINAL]
 
         # north, east, south, west = [], [], [], []
