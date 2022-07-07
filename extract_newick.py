@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-import sys
+from __future__ import annotations
 
+import sys
 from pdfminer.high_level import extract_pages, LAParams
 from pdfminer.layout import LTChar, LTFigure, LTCurve
-from pdfminer.utils import fsplit
+from pdfminer.utils import fsplit, Point, Rect
 from math import sqrt
 from enum import IntEnum
 
@@ -12,7 +13,7 @@ from enum import IntEnum
 VERBOSE = True
 
 
-def debug(msg):
+def debug(msg: str) -> None:
     if VERBOSE:
         sys.stderr.write(f"{msg}\n")
 
@@ -29,21 +30,29 @@ class Direction(IntEnum):
     NORTHWEST = 0x09
 
 
+CARDINAL = (Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST)
+
+
 class Node(object):
-    def __init__(self, x, y):
+    def __init__(self, x: float = None, y: float = None, loc: Point = None):
         debug(f"created node at {(x, y)}")
-        self.x, self.y = x, y
+        if loc is None:
+            assert x is not None
+            assert y is not None
+            self.loc = Point(x, y)
+        else:
+            self.loc = loc
         self.edges = set()
 
-    def add_edge(self, edge):
+    def add_edge(self, edge: Edge) -> None:
         self.edges.add(edge)
 
-    def __str__(self):
-        return f"Node({self.x}, {self.y})"
+    def __str__(self) -> str:
+        return f"Node({self.loc})"
 
     __repr__ = __str__
 
-    def add_connected(self, nd_set, taboo=None):
+    def add_connected(self, nd_set: set, taboo: set = None) -> None:
         seen = taboo if taboo is not None else set()
         seen.add(self)
         nd_set.add(self)
@@ -52,11 +61,19 @@ class Node(object):
                 if (n is not self) and (n not in seen):
                     n.add_connected(nd_set, taboo=seen)
 
-    def adjacent(self):
+    def adjacent(self) -> list:
         return [i.other_node(self) for i in self.edges]
 
     @property
-    def dir_from_adj(self):
+    def x(self) -> float:
+        return self.loc[0]
+
+    @property
+    def y(self) -> float:
+        return self.loc[1]
+
+    @property
+    def dir_from_adj(self) -> Direction:
         assert len(self.edges) == 1
         e = next(iter(self.edges))
         other = e.other_node(self)
@@ -97,7 +114,7 @@ class Edge(object):
         return self.nd1
 
 
-def calc_dist(pt1, pt2):
+def calc_dist(pt1: Point, pt2: Point) -> float:
     xsq = (pt1[0] - pt2[0]) ** 2
     ysq = (pt1[1] - pt2[1]) ** 2
     return sqrt(xsq + ysq)
@@ -247,38 +264,41 @@ class PhyloTree(object):
     def __init__(self, connected_nodes=None, forest=None, text_lines=None):
         self.forest = forest
         self.used_text = set()
-        internals, externals = [], []
+        int_nds, ext_nds = [], []
+        lx, ly, hx, hy = float("inf"), float("inf"), float("-inf"), float("-inf")
         for nd in connected_nodes:
-            cont = externals if len(nd.edges) == 1 else internals
+            cont = ext_nds if len(nd.edges) == 1 else int_nds
             cont.append(nd)
-        north, east, south, west = [], [], [], []
-        for ext in externals:
-            d = ext.dir_from_adj
-            # print(ext, "is", d, "from adjacent node, ", ext.adjacent()[0])
-            if d & Direction.NORTH:
-                north.append(d)
-            if d & Direction.EAST:
-                east.append(d)
-            if d & Direction.SOUTH:
-                south.append(d)
-            if d & Direction.WEST:
-                west.append(d)
-        print(len(north), "nodes to the north of their neighbor")
-        print(len(east), "nodes to the east of their neighbor")
-        print(len(south), "nodes to the south of their neighbor")
-        print(len(west), "nodes to the west of their neighbor")
-        nblob = self._try_as_tips_to(Direction.NORTH, internals, externals, text_lines)
-        eblob = self._try_as_tips_to(Direction.EAST, internals, externals, text_lines)
-        sblob = self._try_as_tips_to(Direction.SOUTH, internals, externals, text_lines)
-        wblob = self._try_as_tips_to(Direction.WEST, internals, externals, text_lines)
-        blob_list = [(i[0], n, i) for n, i in enumerate([eblob, nblob, sblob, wblob])]
-        blob_list.sort()
-        best_blob = blob_list[0]
-        self.tension_score = best_blob[0]
-        self.root = best_blob[1]
-        self.used_text.update(best_blob[2])
-        self.num_tips = best_blob[3]
-        s
+            lx = min(lx, nd.x)
+            ly = min(ly, nd.y)
+            hx = max(hx, nd.x)
+            hy = max(hy, nd.y)
+        nodes_bbox = ((lx, ly),)
+        # by_dir = [self._try_as_tips_to(i, int_nds, ext_nds, text_lines) for i in CARDINAL]
+
+        # north, east, south, west = [], [], [], []
+        # for ext in externals:
+        #     d = ext.dir_from_adj
+        #     # print(ext, "is", d, "from adjacent node, ", ext.adjacent()[0])
+        #     if d & Direction.NORTH:
+        #         north.append(d)
+        #     if d & Direction.EAST:
+        #         east.append(d)
+        #     if d & Direction.SOUTH:
+        #         south.append(d)
+        #     if d & Direction.WEST:
+        #         west.append(d)
+        # print(len(north), "nodes to the north of their neighbor")
+        # print(len(east), "nodes to the east of their neighbor")
+        # print(len(south), "nodes to the south of their neighbor")
+        # print(len(west), "nodes to the west of their neighbor")
+        # blob_list = [(i[0], n, i) for n, i in enumerate([eblob, nblob, sblob, wblob])]
+        # blob_list.sort()
+        # best_blob = blob_list[0]
+        # self.tension_score = best_blob[0]
+        # self.root = best_blob[1]
+        # self.used_text.update(best_blob[2])
+        # self.num_tips = best_blob[3]
 
     def _try_as_tips_to(self, tip_dir, internals, externals, text_lines):
         pass
