@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import sys
 from collections import namedtuple
-from typing import List, Any, Set, Tuple, Union
+from typing import List, Any, Dict, Set, Tuple, Union
 from pdfminer.high_level import extract_pages, LAParams
 from pdfminer.layout import (
     LTChar,
@@ -15,11 +15,12 @@ from pdfminer.layout import (
 )
 from pdfminer.utils import fsplit, Point, Rect
 from math import sqrt
-from enum import IntEnum
+from enum import IntEnum, Enum
 
 # Includes some code from pdfminer layout.py
 
 VERBOSE = True
+COORD_TOL = 1.0e-3
 
 
 def debug(msg: str) -> None:
@@ -360,6 +361,9 @@ class PhyloTree(object):
     ):
         self.forest = forest
         self.used_text = set()
+        self.root = None
+        self.pma = None
+
         int_nds, ext_nds = [], []
         lx, ly, hx, hy = float("inf"), float("inf"), float("-inf"), float("-inf")
         for nd in connected_nodes:
@@ -387,13 +391,15 @@ class PhyloTree(object):
                 assert isinstance(ltline, LTTextLineVertical)
                 vert_text.append(ltline)
         text_bbox = (lx, ly, hx, hy)
-        print(
-            f"nodes_bbox = {nodes_bbox} text_bbox={text_bbox} {len(horiz_text)}, {len(vert_text)}"
-        )
+        # print(
+        #     f"nodes_bbox = {nodes_bbox} text_bbox={text_bbox} {len(horiz_text)}, {len(vert_text)}"
+        # )
         by_dir = [
             self._try_as_tips_to(i, int_nds, ext_nds, horiz_text, vert_text)
             for i in CARDINAL
         ]
+        for attempt in by_dir:
+            print(f"Attempt score = {attempt.score} from {attempt.penalties}")
 
         # north, east, south, west = [], [], [], []
         # for ext in externals:
@@ -426,7 +432,7 @@ class PhyloTree(object):
         externals: List[Node],
         horiz_text: List[LTTextLine],
         vert_text: List[LTTextLine],
-    ):
+    ) -> PhyloMapAttempt:
         if tip_dir in (Direction.EAST, Direction.WEST):
             inline_t = horiz_text
             perpindic_t = vert_text
@@ -454,13 +460,216 @@ class PhyloTree(object):
             prev = by_ext.get(ext)
             if prev is None or dist < prev[-1]:
                 by_ext[ext] = (label_t, dist)
-
+        matched_labels, orphan_labels = [], []
+        matched_leaves = set()
+        matched_dists = []
         for label_t in inline_t:
             ext, dist = by_lab[label_t]
             if by_ext.get(ext, [None, None])[0] is label_t:
-                print(f"{dist:6.3f} - matched - {repr(label_t.get_text())}")
+                matched_labels.append(label_t)
+                matched_dists.append(dist)
+                matched_leaves.add(ext)
             else:
-                print(f"{dist:6.3f} - unmatched - {repr(label_t.get_text())}")
+                orphan_labels.append(label_t)
+        unmatched_ext = set()
+        for nd in externals:
+            if nd not in matched_leaves:
+                unmatched_ext.add(nd)
+        pma = PhyloMapAttempt()
+        expected_def_gap = 10
+        if matched_labels:
+            expected_def_gap = avg_char_width(matched_labels)
+            mean_obs_gap, var_gap = mean_var(matched_dists)
+            pma.add_penalty(Penalty.LABEL_GAP_MEAN, mean_obs_gap)
+            if var_gap:
+                pma.add_penalty(Penalty.LABEL_GAP_STD_DEV, sqrt(var_gap))
+        pma.build_tree_from_tips(
+            tip_dir=tip_dir,
+            internals=internals,
+            matched_lvs=matched_leaves,
+            unmatched_lvs=unmatched_ext,
+            tip_labels=matched_labels,
+            label2leaf=by_lab,
+        )
+        return pma
+
+
+class Penalty(Enum):
+    LABEL_GAP_MEAN = 0
+    LABEL_GAP_STD_DEV = 1
+    UNMATCHED_LABELS = 2
+    WRONG_DIR_TO_PAR = 3
+
+
+class PhyloNode(object):
+    def __init__(self, vnode: Node = None, label_obj: LTTextLine = None):
+        if vnode:
+            assert isinstance(vnode, Node)
+        self.vnode = vnode
+        self.label_obj = label_obj
+        self._unsorted_children = []
+        self._adjacent_by_vedge = {}
+        self._adjacent_by_phynode = {}
+        self.par = None
+        self.edge_to_par = None
+        self.is_root = False
+
+    @property
+    def x(self):
+        return self.vnode.x
+
+    @property
+    def y(self):
+        return self.vnode.y
+
+    def add_child(self, nd: PhyloNode) -> PhyloNode:
+        assert nd.par is None
+        nd.par = self
+        self._unsorted_children.append(nd)
+        return nd
+
+    def add_adjacent(self, nd: PhyloNode, edge: Edge) -> PhyloNode:
+        self._adjacent_by_vedge[edge] = nd
+        self._adjacent_by_phynode[nd] = edge
+        nd._adjacent_by_vedge[edge] = self
+        nd._adjacent_by_phynode[self] = edge
+        return nd
+
+    def root_based_on_par(self, par: PhyloNode, coord_fn, pma: PhyloMapAttempt) -> None:
+        self.par = par
+        if par is not None:
+            self.edge_to_par = self._adjacent_by_phynode[par]
+            sc = coord_fn(self)
+            pc = coord_fn(par)
+            if sc < pc and abs(pc - sc) > COORD_TOL:
+                pma.add_penalty(Penalty.WRONG_DIR_TO_PAR, 1)
+        for adj in self._adjacent_by_vedge.values():
+            if adj is par:
+                continue
+            self._unsorted_children.append(adj)
+            adj.root_based_on_par(self, coord_fn=coord_fn, pma=pma)
+
+
+class PhyloEdge(object):
+    pass
+
+
+class PhyloMapAttempt(object):
+    def __init__(self):
+        self.penalties = {}
+        self.penalty_weights = {}
+        self.root = None
+
+    def add_penalty(self, ptype: Penalty, val: float) -> None:
+        existing = self.penalties.get(ptype, 0.0)
+        self.penalties[ptype] = existing + val
+
+    @property
+    def score(self):
+        s = 0.0
+        for k, v in self.penalties.items():
+            w = self.penalty_weights.get(k, 1.0)
+            s += w * v
+        return s
+
+    def build_tree_from_tips(
+        self,
+        tip_dir: Direction,
+        internals: List[Node],
+        matched_lvs: Set[Node],
+        unmatched_lvs: Set[Node],
+        tip_labels: List[LTTextLine],
+        label2leaf: Dict[LTTextLine, Tuple[Node, float]],
+    ) -> PhyloNode:
+        node2phyn = self._build_adj(
+            internals=internals,
+            unmatched_lvs=unmatched_lvs,
+            tip_labels=tip_labels,
+            label2leaf=label2leaf,
+        )
+        return self._root_by_position(tip_dir=tip_dir, node2phyn=node2phyn)
+
+    def _root_by_position(
+        self, tip_dir: Direction, node2phyn: Dict[Node, PhyloNode]
+    ) -> PhyloNode:
+        rootmost, rootmost_coord = None, float("inf")
+        dir2min_coord = {
+            Direction.NORTH: lambda n: n.y,
+            Direction.SOUTH: lambda n: -n.y,
+            Direction.EAST: lambda n: n.x,
+            Direction.WEST: lambda n: -n.x,
+        }
+        coord_fn = dir2min_coord[tip_dir]
+        for nd, phynd in node2phyn.items():
+            coord = coord_fn(nd)
+            if coord < rootmost_coord:
+                rootmost_coord = coord
+                rootmost = phynd
+        assert rootmost is not None
+        rootmost.root_based_on_par(None, coord_fn, self)
+        return rootmost
+
+    def _build_adj(
+        self,
+        internals: List[Node],
+        unmatched_lvs: Set[Node],
+        tip_labels: List[LTTextLine],
+        label2leaf: Dict[LTTextLine, Tuple[Node, float]],
+    ) -> Dict[Node, PhyloNode]:
+        node2phyn = {}
+        leaves = set()
+        for tl in tip_labels:
+            ml = label2leaf[tl][0]
+            phynd = PhyloNode(vnode=ml, label_obj=tl)
+            node2phyn[ml] = phynd
+            leaves.add(phynd)
+        int_phylo = set()
+        for ul in unmatched_lvs:
+            assert ul not in node2phyn
+            phynd = PhyloNode(vnode=ul)
+            node2phyn[ul] = phynd
+            leaves.add(phynd)
+        for i_nd in internals:
+            assert i_nd not in node2phyn
+            phynd = PhyloNode(vnode=i_nd)
+            node2phyn[i_nd] = phynd
+            int_phylo.add(phynd)
+        for phynd in leaves:
+            par_v_nd = phynd.vnode.adjacent()[0]
+            par_phy_nd = node2phyn[par_v_nd]
+            par_phy_nd.add_adjacent(phynd, next(iter(phynd.vnode.edges)))
+        for phynd in int_phylo:
+            this_v_nd = phynd.vnode
+            for edge in this_v_nd.edges:
+                adj_v_nd = edge.other_node(this_v_nd)
+                adj_phy_nd = node2phyn[adj_v_nd]
+                adj_phy_nd.add_adjacent(phynd, edge)
+        return node2phyn
+
+
+def avg_char_width(text_list: List[LTTextLine]) -> float:
+    assert text_list
+    sum_len, num_chars = 0.0, 0
+    for label in text_list:
+        sum_len += label.width
+        num_chars += len(label.get_text())
+    return sum_len / num_chars
+
+
+def mean_var(flist: List[float]) -> Tuple[Union[float, None], Union[float, None]]:
+    n = len(flist)
+    if n < 2:
+        if n == 0:
+            return None, None
+        return flist[0], None
+    mean, ss = 0.0, 0.0
+    for el in flist:
+        mean += el
+        ss += el * el
+    mean = mean / n
+    var_num = ss - n * mean * mean
+    var = var_num / (n - 1)
+    return mean, var
 
 
 def find_closest(loc: Point, el_list: List[Any]) -> Tuple[float, Any]:
