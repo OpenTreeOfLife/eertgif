@@ -22,6 +22,7 @@ from enum import IntEnum, Enum
 
 VERBOSE = True
 COORD_TOL = 1.0e-3
+MIN_BR_TOL = 1.0e-4
 
 
 def debug(msg: str) -> None:
@@ -569,10 +570,11 @@ class PhyloNode(object):
         self._adjacent_by_vedge = {}
         self._adjacent_by_phynode = {}
         self.par = None
-        self.edge_to_par = None
+        self.orig_vedge_to_par = None
         self.children = None
         self.is_root = False
         self.phy_ctx = phy_ctx
+        self._collapsed = []
 
     @property
     def x(self):
@@ -584,6 +586,9 @@ class PhyloNode(object):
 
     def sort_children(self):
         csfn = self.phy_ctx.child_pos_fn
+        if csfn is None:
+            self.children = list(self._unsorted_children)
+            return
         wip = [(csfn(i), n, i) for n, i in enumerate(self._unsorted_children)]
         wip.sort()
         self.children = [i[-1] for i in wip]
@@ -601,13 +606,31 @@ class PhyloNode(object):
         nd._adjacent_by_phynode[self] = edge
         return nd
 
+    def _collapse_into_par(self):
+        par = self.par
+        assert par is not None
+        par._collapsed.extend(self._collapsed)
+        par._collapsed.append(self)
+        par._unsorted_children.extend(self._unsorted_children)
+        for c in self._unsorted_children:
+            c.par = par
+
+    def collapse_short_internals(self, min_br):
+        orig_children = list(self._unsorted_children)
+        for c in orig_children:
+            c.collapse_short_internals(min_br)
+        elen = self.edge_len()
+        if (elen is not None) and bool(orig_children) and (elen < min_br):
+            assert self.par is not None
+            self._collapse_into_par()
+
     def root_based_on_par(self, par: PhyloNode = None) -> None:
         pma = self.phy_ctx.attempt
         coord_fn = self.phy_ctx.pos_min_fn
 
         self.par = par
         if par is not None:
-            self.edge_to_par = self._adjacent_by_phynode[par]
+            self.orig_vedge_to_par = self._adjacent_by_phynode[par]
             sc = coord_fn(self)
             pc = coord_fn(par)
             if sc < pc and abs(pc - sc) > COORD_TOL:
@@ -706,6 +729,7 @@ class PhyloMapAttempt(object):
             phynd = node2phyn[leaf]
             if phynd is not root:
                 self.add_penalty(Penalty.UNMATCHED_LABELS, 1)
+        root.collapse_short_internals(MIN_BR_TOL)
 
     def _root_by_position(
         self, tip_dir: Direction, node2phyn: Dict[Node, PhyloNode]
