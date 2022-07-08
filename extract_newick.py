@@ -14,6 +14,9 @@ from pdfminer.layout import (
     LTTextLine,
     LTTextLineHorizontal,
     LTTextLineVertical,
+    LTTextBox,
+    LTTextBoxHorizontal,
+    LTTextBoxVertical,
 )
 from pdfminer.utils import fsplit, Point, Rect
 from math import sqrt
@@ -1029,8 +1032,19 @@ def _analyze_text_and_curves(text_lines, curves):
 def analyze_figure(fig, params=None):
     if params is None:
         params = LAParams()
-    (textobjs, otherobjs) = fsplit(lambda o: isinstance(o, LTChar), fig)
-    text_lines = list(fig.group_objects(params, textobjs))
+    char_objs = []
+    text_lines = []
+    otherobjs = []
+    for el in fig:
+        if isinstance(el, LTChar):
+            char_objs.append(el)
+        elif isinstance(el, LTTextLine) or isinstance(el, LTTextBox):
+            text_lines.append(el)
+        else:
+            otherobjs.append(el)
+    if char_objs:
+        text_lines.extend(list(fig.group_objects(params, char_objs)))
+
     ftl, fc = [], []
     for line in text_lines:
         # print(line.get_text(), f"@({line.x0}, {line.y0}) - ({line.x1}, {line.y1}) w={line.width} h={line.height}")
@@ -1053,18 +1067,25 @@ def analyze_figure(fig, params=None):
 def main(fp):
     # params = LAParams()
     for page_layout in extract_pages(fp):
-        for element in page_layout:
-            if isinstance(element, LTFigure):
-                analyze_figure(element)
-            else:
-                debug(f"Skipping non-figure {element}")
-            # for sub in element:
-            #
-            #     try:
-            #         for subsub in sub:
-            #             print(f"    subsub = {subsub}")
-            #     except TypeError:
-            #         pass
+        figures = [el for el in page_layout if isinstance(el, LTFigure)]
+        if figures:
+            for fig in figures:
+                analyze_figure(fig)
+        else:
+            # try whole page as figure container
+            analyze_figure(page_layout)
+        # for element in page_layout:
+        #     if isinstance(element, LTFigure):
+        #         analyze_figure(element)
+        #     else:
+        #         debug(f"Skipping non-figure {element}")
+        # for sub in element:
+        #
+        #     try:
+        #         for subsub in sub:
+        #             print(f"    subsub = {subsub}")
+        #     except TypeError:
+        #         pass
 
 
 if __name__ == "__main__":
