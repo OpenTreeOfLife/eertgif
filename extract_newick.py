@@ -453,6 +453,10 @@ class PhyloTree(object):
     def score(self):
         return self.pma.score
 
+    @property
+    def attempt(self):
+        return self.pma
+
     def _try_as_tips_to(
         self,
         tip_dir: Direction,
@@ -517,6 +521,9 @@ class PhyloTree(object):
             tip_labels=matched_labels,
             label2leaf=by_lab,
         )
+        self.unmatched_ext_nodes = unmatched_ext
+        self.unused_perpindicular_text = perpindic_t
+        self.unused_inline_text = orphan_labels
         return pma
 
 
@@ -642,25 +649,25 @@ class PhyloNode(object):
             adj.root_based_on_par(self)
         self.sort_children()
 
-    def get_newick(self) -> str:
+    def get_newick(self, edge_len_scaler=None) -> str:
         ostr = StringIO()
-        self.write_newick(ostr)
+        self.write_newick(ostr, edge_len_scaler=edge_len_scaler)
         ostr.write(";")
         return ostr.getvalue()
 
-    def write_newick(self, out, scaler=None):
+    def write_newick(self, out, edge_len_scaler=None):
         """Writes newick to `out` without the trailing ;"""
         if self.children:
             out.write("(")
             for n, child in enumerate(self.children):
                 if n != 0:
                     out.write(",")
-                child.write_newick(out, scaler=scaler)
+                child.write_newick(out, edge_len_scaler=edge_len_scaler)
             out.write(")")
         if self.label_obj:
             out.write(escape_newick(self.label_obj.get_text()))
         if self.par:
-            elen = self.edge_len(scaler=scaler)
+            elen = self.edge_len(scaler=edge_len_scaler)
             out.write(f":{elen}")
 
     def edge_len(self, scaler=None):
@@ -695,6 +702,15 @@ class PhyloMapAttempt(object):
         self.penalties = {}
         self.penalty_weights = {}
         self.root = None
+        self.unmatched_ext_nodes = []
+        self.unused_perpindicular_text = []
+        self.unused_inline_text = []
+
+    @property
+    def unused_text(self):
+        u = list(self.unused_perpindicular_text)
+        u.extend(unused_inline_text)
+        return u
 
     def add_penalty(self, ptype: Penalty, val: float) -> None:
         existing = self.penalties.get(ptype, 0.0)
@@ -838,8 +854,20 @@ def _analyze_text_and_curves(text_lines, curves):
                 best_score = score
                 best_tree = tree
             extra_lines = extra_lines.difference(tree.used_text)
-    if tree:
-        print(tree.root.get_newick())
+    if not best_tree:
+        return
+    pma = best_tree.attempt
+    best_legend, best_leg_score = None, float("inf")
+    for n, c in enumerate(forest.components):
+        if len(c) <= 4:
+            legend = forest.interpret_as_legend(n, pma.unused_text)
+            if legend.score < best_leg_score:
+                best_leg_score = legend.score
+                best_legend = legend
+    edge_len_scaler = None
+    if best_legend:
+        edge_len_scaler = best_legend.edge_len_scaler
+    print(tree.root.get_newick(edge_len_scaler))
 
 
 def analyze_figure(fig, params=None):
