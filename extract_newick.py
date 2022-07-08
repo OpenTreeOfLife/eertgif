@@ -21,6 +21,7 @@ from pdfminer.layout import (
 from pdfminer.utils import fsplit, Point, Rect
 from math import sqrt
 from enum import IntEnum, Enum
+from to_svg import to_svg
 
 # Includes some code from pdfminer layout.py
 
@@ -1038,13 +1039,20 @@ def analyze_figure(fig, params=None):
     for el in fig:
         if isinstance(el, LTChar):
             char_objs.append(el)
-        elif isinstance(el, LTTextLine) or isinstance(el, LTTextBox):
+        elif isinstance(el, LTTextBox):
+            t = el.get_text()
+            for sel in el:
+                if isinstance(sel, LTTextLine):
+                    text_lines.append(sel)
+        elif isinstance(el, LTTextLine):
             text_lines.append(el)
         else:
             otherobjs.append(el)
     if char_objs:
         text_lines.extend(list(fig.group_objects(params, char_objs)))
 
+    with open("cruft/debug.html", "w") as svg_out:
+        to_svg(svg_out, fig, text_lines, otherobjs)
     ftl, fc = [], []
     for line in text_lines:
         # print(line.get_text(), f"@({line.x0}, {line.y0}) - ({line.x1}, {line.y1}) w={line.width} h={line.height}")
