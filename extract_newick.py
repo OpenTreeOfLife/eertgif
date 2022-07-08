@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+import re
 from collections import namedtuple
 from io import StringIO
 from typing import List, Any, Dict, Set, Tuple, Union
@@ -23,6 +24,7 @@ from enum import IntEnum, Enum
 VERBOSE = True
 COORD_TOL = 1.0e-3
 MIN_BR_TOL = 1.0e-4
+DEFAULT_LABEL_GAP = 10
 
 
 def debug(msg: str) -> None:
@@ -220,6 +222,19 @@ class Edge(object):
         assert nd is self.nd2
         return self.nd1
 
+    @property
+    def midpoint(self):
+        return (self.nd1.x + self.nd2.x) / 2.0, (self.nd1.y + self.nd2.y) / 2.0
+
+    @property
+    def length(self):
+        return calc_dist(self.nd1.loc, self.nd2.loc)
+
+
+def midpoint(rect: Rect):
+    x0, y0, x1, y1 = rect
+    return (x0 + x1) / 2.0, (y0 + y1) / 2.0
+
 
 def calc_dist(pt1: Point, pt2: Point) -> float:
     xsq = (pt1[0] - pt2[0]) ** 2
@@ -351,11 +366,99 @@ class GraphFromEdges(object):
         return forest
 
 
+class PhyloLegend(object):
+    def __init__(
+        self,
+        connected_nodes: Set[Node] = None,
+        forest: Forest = None,
+        text_lines: List[LTTextLine] = None,
+    ):
+        self.forest = forest
+        self.score = None
+        edges = set()
+        for nd in connected_nodes:
+            for edge in nd.edges:
+                edges.add(edge)
+        edge_list = [(i.midpoint, i) for i in edges]
+        could_be_num = [i for i in text_lines if as_numeric(i.get_text())[0]]
+        line_list = [(midpoint(i.bbox), i) for i in could_be_num]
+        min_d, min_el = float("inf"), None
+        for line_tup in line_list:
+            dist, edge_tup = find_closest_first(line_tup, edge_list)
+            if dist < min_d:
+                min_d = dist
+                min_el = (line_tup[1], edge_tup[1])
+        if min_el is None:
+            raise RuntimeError("Could not find a figure legend in nodes and text")
+        self.legend_pair = min_el
+        self.bar = min_el[1]
+        self.legend_text = min_el[0]
+        self.edge_len_scaler = as_numeric(min_el[0].get_text())[1] / (self.bar.length)
+        self.unused_text = set([i for i in text_lines if i is not self.legend_text])
+        self.unused_nodes = [i for i in connected_nodes if i is not self.bar]
+        self.score = abs(DEFAULT_LABEL_GAP - min_d)
+
+
+starts_num_pat = re.compile(r"^([-.eE0-9]+).*")
+
+
+def as_numeric(label):
+    m = starts_num_pat.match(label.strip())
+    if m:
+        g = m.group(1)
+        try:
+            n = int(g)
+        except ValueError:
+            pass
+        else:
+            return True, n
+        try:
+            f = float(g)
+        except ValueError:
+            pass
+        else:
+            return True, f
+    return False, None
+
+
+def find_closest_first(tup, tup_list):
+    """assumes first element in tup and each tuple of tup_list is a loc.
+
+    Returns closest element from tup_list.
+    """
+    loc = tup[0]
+    min_dist, closest = float("inf"), None
+    for tl_el in tup_list:
+        tl_loc = tl_el[0]
+        d = calc_dist(loc, tl_loc)
+        if d < min_dist:
+            min_dist = d
+            closest = tl_el
+    return min_dist, closest
+
+
 class Forest(object):
     def __init__(self, graph: GraphFromEdges):
         self.components = []
         self.graph = graph
         self.trees = []
+        self.legends = []
+
+    def interpret_as_legend(
+        self, idx: int, text_lines: List[LTTextLine]
+    ) -> PhyloLegend:
+        comp = self.components[idx]
+        while len(self.legends) <= idx:
+            self.legends.append(None)
+        t = self.legends[idx]
+        if t is not None:
+            return t
+        try:
+            t = PhyloLegend(connected_nodes=comp, forest=self, text_lines=text_lines)
+            self.legends[idx] = t
+        except RuntimeError:
+            pass
+        return t
 
     def interpret_as_tree(self, idx: int, text_lines: List[LTTextLine]) -> PhyloTree:
         comp = self.components[idx]
@@ -506,7 +609,7 @@ class PhyloTree(object):
             if nd not in matched_leaves:
                 unmatched_ext.add(nd)
         pma = PhyloMapAttempt()
-        expected_def_gap = 10
+        expected_def_gap = DEFAULT_LABEL_GAP
         if matched_labels:
             expected_def_gap = avg_char_width(matched_labels)
             mean_obs_gap, var_gap = mean_var(matched_dists)
@@ -521,9 +624,9 @@ class PhyloTree(object):
             tip_labels=matched_labels,
             label2leaf=by_lab,
         )
-        self.unmatched_ext_nodes = unmatched_ext
-        self.unused_perpindicular_text = perpindic_t
-        self.unused_inline_text = orphan_labels
+        pma.unmatched_ext_nodes = unmatched_ext
+        pma.unused_perpindicular_text = perpindic_t
+        pma.unused_inline_text = orphan_labels
         return pma
 
 
@@ -582,6 +685,7 @@ class PhyloNode(object):
         self.is_root = False
         self.phy_ctx = phy_ctx
         self._collapsed = []
+        self.merged = None
 
     @property
     def x(self):
@@ -590,6 +694,10 @@ class PhyloNode(object):
     @property
     def y(self):
         return self.vnode.y
+
+    @property
+    def is_tip(self):
+        return not bool(self._unsorted_children)
 
     def sort_children(self):
         csfn = self.phy_ctx.child_pos_fn
@@ -618,18 +726,32 @@ class PhyloNode(object):
         assert par is not None
         par._collapsed.extend(self._collapsed)
         par._collapsed.append(self)
+        self._collapsed = []
+        self.merged = par
         par._unsorted_children.extend(self._unsorted_children)
+        idx = par._unsorted_children.index(self)
+        par._unsorted_children.pop(idx)
+        assert self not in par._unsorted_children
         for c in self._unsorted_children:
             c.par = par
+        par.sort_children()
+
+    def post_order(self) -> List[PhyloNode]:
+        nd_list = []
+        for c in self._unsorted_children:
+            nd_list.extend(c.post_order())
+        nd_list.append(self)
+        return nd_list
 
     def collapse_short_internals(self, min_br):
-        orig_children = list(self._unsorted_children)
-        for c in orig_children:
-            c.collapse_short_internals(min_br)
-        elen = self.edge_len()
-        if (elen is not None) and bool(orig_children) and (elen < min_br):
-            assert self.par is not None
-            self._collapse_into_par()
+        post_nds = self.post_order()
+        for nd in post_nds:
+            if nd.is_tip:
+                continue
+            elen = nd.edge_len()
+            if (elen is not None) and (elen < min_br):
+                assert nd.par is not None
+                nd._collapse_into_par()
 
     def root_based_on_par(self, par: PhyloNode = None) -> None:
         pma = self.phy_ctx.attempt
@@ -657,6 +779,7 @@ class PhyloNode(object):
 
     def write_newick(self, out, edge_len_scaler=None):
         """Writes newick to `out` without the trailing ;"""
+        assert self.merged is None
         if self.children:
             out.write("(")
             for n, child in enumerate(self.children):
@@ -709,7 +832,7 @@ class PhyloMapAttempt(object):
     @property
     def unused_text(self):
         u = list(self.unused_perpindicular_text)
-        u.extend(unused_inline_text)
+        u.extend(self.unused_inline_text)
         return u
 
     def add_penalty(self, ptype: Penalty, val: float) -> None:
@@ -861,7 +984,7 @@ def _analyze_text_and_curves(text_lines, curves):
     for n, c in enumerate(forest.components):
         if len(c) <= 4:
             legend = forest.interpret_as_legend(n, pma.unused_text)
-            if legend.score < best_leg_score:
+            if (legend is not None) and (legend.score < best_leg_score):
                 best_leg_score = legend.score
                 best_legend = legend
     edge_len_scaler = None
@@ -874,9 +997,9 @@ def analyze_figure(fig, params=None):
     if params is None:
         params = LAParams()
     (textobjs, otherobjs) = fsplit(lambda o: isinstance(o, LTChar), fig)
-    textlines = list(fig.group_objects(params, textobjs))
+    text_lines = list(fig.group_objects(params, textobjs))
     ftl, fc = [], []
-    for line in textlines:
+    for line in text_lines:
         # print(line.get_text(), f"@({line.x0}, {line.y0}) - ({line.x1}, {line.y1}) w={line.width} h={line.height}")
         ftl.append(line)
     for obj in otherobjs:
