@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sys
 from collections import namedtuple
+from io import StringIO
 from typing import List, Any, Dict, Set, Tuple, Union
 from pdfminer.high_level import extract_pages, LAParams
 from pdfminer.layout import (
@@ -38,6 +39,21 @@ class Direction(IntEnum):
     SOUTHWEST = 0x0A
     WEST = 0x08
     NORTHWEST = 0x09
+
+
+def rotate_cw(tip_dir: Direction) -> Direction:
+    deg_90 = {
+        Direction.SAME: Direction.SAME,
+        Direction.NORTH: Direction.EAST,
+        Direction.NORTHEAST: Direction.SOUTHEAST,
+        Direction.EAST: Direction.SOUTH,
+        Direction.SOUTHEAST: Direction.SOUTHWEST,
+        Direction.SOUTH: Direction.WEST,
+        Direction.SOUTHWEST: Direction.NORTHWEST,
+        Direction.WEST: Direction.NORTH,
+        Direction.NORTHWEST: Direction.NORTHEAST,
+    }
+    return deg_90[tip_dir]
 
 
 CARDINAL = (Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST)
@@ -398,8 +414,15 @@ class PhyloTree(object):
             self._try_as_tips_to(i, int_nds, ext_nds, horiz_text, vert_text)
             for i in CARDINAL
         ]
+        min_score, best_attempt = float("inf"), None
         for attempt in by_dir:
-            print(f"Attempt score = {attempt.score} from {attempt.penalties}")
+            s = attempt.score
+            if s < min_score:
+                min_score = s
+                best_attempt = attempt
+            # print(f"Attempt score = {attempt.score} from {attempt.penalties}")
+        self.pma = best_attempt
+        self.root = best_attempt.root
 
         # north, east, south, west = [], [], [], []
         # for ext in externals:
@@ -425,6 +448,10 @@ class PhyloTree(object):
         # self.used_text.update(best_blob[2])
         # self.num_tips = best_blob[3]
 
+    @property
+    def score(self):
+        return self.pma.score
+
     def _try_as_tips_to(
         self,
         tip_dir: Direction,
@@ -449,9 +476,7 @@ class PhyloTree(object):
             else:
                 calc_y = lambda el: el.y0
             calc_x = lambda el: (el.x0 + el.x1) / 2.0
-        print(
-            f"Trying DIR={repr(tip_dir)} ... len(externals) = {len(externals)}, len(inline_t)={len(inline_t)}"
-        )
+        # debug(f"Trying DIR={repr(tip_dir)} ... len(externals) = {len(externals)}, len(inline_t)={len(inline_t)}")
         by_lab, by_ext = {}, {}
         for label_t in inline_t:
             loc = (calc_x(label_t), calc_y(label_t))
@@ -502,7 +527,12 @@ class Penalty(Enum):
 
 
 class PhyloNode(object):
-    def __init__(self, vnode: Node = None, label_obj: LTTextLine = None):
+    def __init__(
+        self,
+        vnode: Node = None,
+        label_obj: LTTextLine = None,
+        tip_dir: Direction = None,
+    ):
         if vnode:
             assert isinstance(vnode, Node)
         self.vnode = vnode
@@ -512,7 +542,9 @@ class PhyloNode(object):
         self._adjacent_by_phynode = {}
         self.par = None
         self.edge_to_par = None
+        self.children = None
         self.is_root = False
+        self.tip_dir = tip_dir
 
     @property
     def x(self):
@@ -535,7 +567,9 @@ class PhyloNode(object):
         nd._adjacent_by_phynode[self] = edge
         return nd
 
-    def root_based_on_par(self, par: PhyloNode, coord_fn, pma: PhyloMapAttempt) -> None:
+    def root_based_on_par(
+        self, par: PhyloNode, coord_fn, child_sort_fn, pma: PhyloMapAttempt
+    ) -> None:
         self.par = par
         if par is not None:
             self.edge_to_par = self._adjacent_by_phynode[par]
@@ -547,7 +581,54 @@ class PhyloNode(object):
             if adj is par:
                 continue
             self._unsorted_children.append(adj)
-            adj.root_based_on_par(self, coord_fn=coord_fn, pma=pma)
+            adj.root_based_on_par(
+                self, coord_fn=coord_fn, child_sort_fn=child_sort_fn, pma=pma
+            )
+        wip = [(child_sort_fn(i), n, i) for n, i in enumerate(self._unsorted_children)]
+        wip.sort()
+        self.children = [i[-1] for i in wip]
+
+    def get_newick(self) -> str:
+        ostr = StringIO()
+        self.write_newick(ostr)
+        ostr.write(";")
+        return ostr.getvalue()
+
+    def write_newick(self, out, scaler=None):
+        """Writes newick to `out` without the trailing ;"""
+        if self.children:
+            out.write("(")
+            for n, child in enumerate(self.children):
+                if n != 0:
+                    out.write(",")
+                child.write_newick(out, scaler=scaler)
+            out.write(")")
+        if self.label_obj:
+            out.write(escape_newick(self.label_obj.get_text()))
+        if self.par:
+            elen = self.edge_len(scaler=scaler)
+            out.write(f":{elen}")
+
+    def edge_len(self, scaler=None):
+        p = self.par
+        if p is None:
+            return None
+        if self.tip_dir in [Direction.EAST, Direction.WEST]:
+            d = abs(self.x - p.x)  # x-offset only
+        elif self.tip_dir in [Direction.NORTH, Direction.SOUTH]:
+            d = abs(self.y - p.y)  # y-offset only
+        else:
+            d = calc_dist(
+                (p.x, p.y), (self.x, self.y)
+            )  # diagonal - this is an odd choice @TODO
+        if scaler:
+            return scaler * d
+        return d
+
+
+def escape_newick(s):
+    e = "''".join(s.split("'"))
+    return f"'{e}'"
 
 
 class PhyloEdge(object):
@@ -582,12 +663,17 @@ class PhyloMapAttempt(object):
         label2leaf: Dict[LTTextLine, Tuple[Node, float]],
     ) -> PhyloNode:
         node2phyn = self._build_adj(
+            tip_dir=tip_dir,
             internals=internals,
             unmatched_lvs=unmatched_lvs,
             tip_labels=tip_labels,
             label2leaf=label2leaf,
         )
-        return self._root_by_position(tip_dir=tip_dir, node2phyn=node2phyn)
+        root = self._root_by_position(tip_dir=tip_dir, node2phyn=node2phyn)
+        for leaf in unmatched_lvs:
+            phynd = node2phyn[leaf]
+            if phynd is not root:
+                self.add_penalty(Penalty.UNMATCHED_LABELS, 1)
 
     def _root_by_position(
         self, tip_dir: Direction, node2phyn: Dict[Node, PhyloNode]
@@ -600,17 +686,21 @@ class PhyloMapAttempt(object):
             Direction.WEST: lambda n: -n.x,
         }
         coord_fn = dir2min_coord[tip_dir]
+        dir_for_last_child = rotate_cw(tip_dir)
+        child_coord_fn = dir2min_coord[dir_for_last_child]
         for nd, phynd in node2phyn.items():
             coord = coord_fn(nd)
             if coord < rootmost_coord:
                 rootmost_coord = coord
                 rootmost = phynd
         assert rootmost is not None
-        rootmost.root_based_on_par(None, coord_fn, self)
+        rootmost.root_based_on_par(None, coord_fn, child_coord_fn, self)
+        self.root = rootmost
         return rootmost
 
     def _build_adj(
         self,
+        tip_dir: Direction,
         internals: List[Node],
         unmatched_lvs: Set[Node],
         tip_labels: List[LTTextLine],
@@ -620,18 +710,18 @@ class PhyloMapAttempt(object):
         leaves = set()
         for tl in tip_labels:
             ml = label2leaf[tl][0]
-            phynd = PhyloNode(vnode=ml, label_obj=tl)
+            phynd = PhyloNode(vnode=ml, label_obj=tl, tip_dir=tip_dir)
             node2phyn[ml] = phynd
             leaves.add(phynd)
         int_phylo = set()
         for ul in unmatched_lvs:
             assert ul not in node2phyn
-            phynd = PhyloNode(vnode=ul)
+            phynd = PhyloNode(vnode=ul, tip_dir=tip_dir)
             node2phyn[ul] = phynd
             leaves.add(phynd)
         for i_nd in internals:
             assert i_nd not in node2phyn
-            phynd = PhyloNode(vnode=i_nd)
+            phynd = PhyloNode(vnode=i_nd, tip_dir=tip_dir)
             node2phyn[i_nd] = phynd
             int_phylo.add(phynd)
         for phynd in leaves:
@@ -688,10 +778,17 @@ def _analyze_text_and_curves(text_lines, curves):
         graph.add_curve(curve)
     forest = graph.build_forest()
     extra_lines = set(text_lines)
+    best_tree, best_score = None, float("inf")
     for n, c in enumerate(forest.components):
         if len(c) > 4:
             tree = forest.interpret_as_tree(n, text_lines)
+            score = tree.score
+            if score < best_score:
+                best_score = score
+                best_tree = tree
             extra_lines = extra_lines.difference(tree.used_text)
+    if tree:
+        print(tree.root.get_newick())
 
 
 def analyze_figure(fig, params=None):
