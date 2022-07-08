@@ -526,12 +526,40 @@ class Penalty(Enum):
     WRONG_DIR_TO_PAR = 3
 
 
+class PhyloTreeData(object):
+    """Blob of data common to all nodes/edges"""
+
+    def __init__(self, tip_dir: Direction = None, attempt: PhyloMapAttempt = None):
+        self._tip_dir = None
+        self.pos_min_fn = None
+        self.child_pos_fn = None
+        self.attempt = attempt
+        self.tip_dir = tip_dir
+
+    @property
+    def tip_dir(self):
+        return self._tip_dir
+
+    @tip_dir.setter
+    def tip_dir(self, tip_dir):
+        self._tip_dir = tip_dir
+        dir2min_coord = {
+            Direction.NORTH: lambda n: n.y,
+            Direction.SOUTH: lambda n: -n.y,
+            Direction.EAST: lambda n: n.x,
+            Direction.WEST: lambda n: -n.x,
+        }
+        self.pos_min_fn = dir2min_coord[tip_dir]
+        dir_for_last_child = rotate_cw(tip_dir)
+        self.child_pos_fn = dir2min_coord[dir_for_last_child]
+
+
 class PhyloNode(object):
     def __init__(
         self,
         vnode: Node = None,
         label_obj: LTTextLine = None,
-        tip_dir: Direction = None,
+        phy_ctx: PhyloTreeData = None,
     ):
         if vnode:
             assert isinstance(vnode, Node)
@@ -544,7 +572,7 @@ class PhyloNode(object):
         self.edge_to_par = None
         self.children = None
         self.is_root = False
-        self.tip_dir = tip_dir
+        self.phy_ctx = phy_ctx
 
     @property
     def x(self):
@@ -553,6 +581,12 @@ class PhyloNode(object):
     @property
     def y(self):
         return self.vnode.y
+
+    def sort_children(self):
+        csfn = self.phy_ctx.child_pos_fn
+        wip = [(csfn(i), n, i) for n, i in enumerate(self._unsorted_children)]
+        wip.sort()
+        self.children = [i[-1] for i in wip]
 
     def add_child(self, nd: PhyloNode) -> PhyloNode:
         assert nd.par is None
@@ -567,9 +601,10 @@ class PhyloNode(object):
         nd._adjacent_by_phynode[self] = edge
         return nd
 
-    def root_based_on_par(
-        self, par: PhyloNode, coord_fn, child_sort_fn, pma: PhyloMapAttempt
-    ) -> None:
+    def root_based_on_par(self, par: PhyloNode = None) -> None:
+        pma = self.phy_ctx.attempt
+        coord_fn = self.phy_ctx.pos_min_fn
+
         self.par = par
         if par is not None:
             self.edge_to_par = self._adjacent_by_phynode[par]
@@ -581,12 +616,8 @@ class PhyloNode(object):
             if adj is par:
                 continue
             self._unsorted_children.append(adj)
-            adj.root_based_on_par(
-                self, coord_fn=coord_fn, child_sort_fn=child_sort_fn, pma=pma
-            )
-        wip = [(child_sort_fn(i), n, i) for n, i in enumerate(self._unsorted_children)]
-        wip.sort()
-        self.children = [i[-1] for i in wip]
+            adj.root_based_on_par(self)
+        self.sort_children()
 
     def get_newick(self) -> str:
         ostr = StringIO()
@@ -613,9 +644,10 @@ class PhyloNode(object):
         p = self.par
         if p is None:
             return None
-        if self.tip_dir in [Direction.EAST, Direction.WEST]:
+        td = self.phy_ctx.tip_dir
+        if td in [Direction.EAST, Direction.WEST]:
             d = abs(self.x - p.x)  # x-offset only
-        elif self.tip_dir in [Direction.NORTH, Direction.SOUTH]:
+        elif td in [Direction.NORTH, Direction.SOUTH]:
             d = abs(self.y - p.y)  # y-offset only
         else:
             d = calc_dist(
@@ -678,23 +710,17 @@ class PhyloMapAttempt(object):
     def _root_by_position(
         self, tip_dir: Direction, node2phyn: Dict[Node, PhyloNode]
     ) -> PhyloNode:
+        # set up functions for returning a float to minimize during sort
+        #   based on direction of the reading, and coordinates
         rootmost, rootmost_coord = None, float("inf")
-        dir2min_coord = {
-            Direction.NORTH: lambda n: n.y,
-            Direction.SOUTH: lambda n: -n.y,
-            Direction.EAST: lambda n: n.x,
-            Direction.WEST: lambda n: -n.x,
-        }
-        coord_fn = dir2min_coord[tip_dir]
-        dir_for_last_child = rotate_cw(tip_dir)
-        child_coord_fn = dir2min_coord[dir_for_last_child]
         for nd, phynd in node2phyn.items():
+            coord_fn = phynd.phy_ctx.pos_min_fn
             coord = coord_fn(nd)
             if coord < rootmost_coord:
                 rootmost_coord = coord
                 rootmost = phynd
         assert rootmost is not None
-        rootmost.root_based_on_par(None, coord_fn, child_coord_fn, self)
+        rootmost.root_based_on_par(None)
         self.root = rootmost
         return rootmost
 
@@ -708,20 +734,21 @@ class PhyloMapAttempt(object):
     ) -> Dict[Node, PhyloNode]:
         node2phyn = {}
         leaves = set()
+        phy_ctx = PhyloTreeData(tip_dir=tip_dir, attempt=self)
         for tl in tip_labels:
             ml = label2leaf[tl][0]
-            phynd = PhyloNode(vnode=ml, label_obj=tl, tip_dir=tip_dir)
+            phynd = PhyloNode(vnode=ml, label_obj=tl, phy_ctx=phy_ctx)
             node2phyn[ml] = phynd
             leaves.add(phynd)
         int_phylo = set()
         for ul in unmatched_lvs:
             assert ul not in node2phyn
-            phynd = PhyloNode(vnode=ul, tip_dir=tip_dir)
+            phynd = PhyloNode(vnode=ul, phy_ctx=phy_ctx)
             node2phyn[ul] = phynd
             leaves.add(phynd)
         for i_nd in internals:
             assert i_nd not in node2phyn
-            phynd = PhyloNode(vnode=i_nd, tip_dir=tip_dir)
+            phynd = PhyloNode(vnode=i_nd, phy_ctx=phy_ctx)
             node2phyn[i_nd] = phynd
             int_phylo.add(phynd)
         for phynd in leaves:
