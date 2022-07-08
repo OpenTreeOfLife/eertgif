@@ -27,7 +27,9 @@ MIN_BR_TOL = 1.0e-4
 DEFAULT_LABEL_GAP = 10
 
 
-def debug(msg: str) -> None:
+def debug(msg: str, msg_list: List[Any] = None) -> None:
+    if msg_list is not None:
+        msg_list.append(msg)
     if VERBOSE:
         sys.stderr.write(f"{msg}\n")
 
@@ -552,6 +554,26 @@ class PhyloTree(object):
         # self.used_text.update(best_blob[2])
         # self.num_tips = best_blob[3]
 
+    def clean_for_export(self):
+        dup_labels = {}
+        for nd in self.root.post_order():
+            lab = nd.label
+            if not lab:
+                continue
+            dup_labels.setdefault(lab, []).append(nd)
+        for label, vals in dup_labels.items():
+            if len(vals) > 1:
+                num = 1
+                for nd in vals:
+                    nl = f"{label}-duplicate#{num}"
+                    num += 1
+                    if nl not in dup_labels:
+                        nd._label = nl
+                    debug(
+                        f'duplicate label. Renaming "{label}" to "{nl}"',
+                        self.pma.messages,
+                    )
+
     @property
     def score(self):
         return self.pma.score
@@ -686,6 +708,15 @@ class PhyloNode(object):
         self.phy_ctx = phy_ctx
         self._collapsed = []
         self.merged = None
+        self._label = None
+
+    @property
+    def label(self):
+        if self._label:
+            return self._label
+        if self.label_obj is not None:
+            return self.label_obj.get_text()
+        return None
 
     @property
     def x(self):
@@ -788,7 +819,7 @@ class PhyloNode(object):
                 child.write_newick(out, edge_len_scaler=edge_len_scaler)
             out.write(")")
         if self.label_obj:
-            out.write(escape_newick(self.label_obj.get_text()))
+            out.write(escape_newick(self.label))
         if self.par:
             elen = self.edge_len(scaler=edge_len_scaler)
             out.write(f":{elen}")
@@ -828,6 +859,7 @@ class PhyloMapAttempt(object):
         self.unmatched_ext_nodes = []
         self.unused_perpindicular_text = []
         self.unused_inline_text = []
+        self.messages = []
 
     @property
     def unused_text(self):
@@ -990,7 +1022,8 @@ def _analyze_text_and_curves(text_lines, curves):
     edge_len_scaler = None
     if best_legend:
         edge_len_scaler = best_legend.edge_len_scaler
-    print(tree.root.get_newick(edge_len_scaler))
+    best_tree.clean_for_export()
+    print(best_tree.root.get_newick(edge_len_scaler))
 
 
 def analyze_figure(fig, params=None):
