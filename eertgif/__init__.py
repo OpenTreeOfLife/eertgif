@@ -21,7 +21,7 @@ from pdfminer.layout import (
 from pdfminer.utils import fsplit, Point, Rect
 from math import sqrt
 from enum import IntEnum, Enum
-from to_svg import to_svg
+from .to_svg import to_svg
 
 # Includes some code from pdfminer layout.py
 
