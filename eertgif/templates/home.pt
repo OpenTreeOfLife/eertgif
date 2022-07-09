@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>eertgif</title>
+</head>
+<body>
+    <table>
+      <tr tal:repeat="row tags">
+        <td> ${row} </td>
+      </tr>
+    </table>
+</body>
+</html>
