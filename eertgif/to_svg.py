@@ -31,11 +31,13 @@ def to_svg(out, container, text_lines, objects):
     xfn = lambda x: x - cbb[0]
     yfn = lambda y: cbb[3] - y  # pdf y=0 is bottom, but svg is top
 
-    out.write(f"""<!DOCTYPE html>
+    out.write(
+        f"""<!DOCTYPE html>
 <html>
 <body>
 <svg width="{width}" height="{height}" > 
-""")
+"""
+    )
     for n, o in enumerate(objects):
         if isinstance(o, LTCurve):
             curve_as_path(out, o, xfn, yfn)
@@ -44,15 +46,18 @@ def to_svg(out, container, text_lines, objects):
     for n, text in enumerate(text_lines):
         sys.stderr.write(f"text {1+n}: {text} {text.__dict__}\n")
         text_as_text_el(out, text, xfn, yfn)
-    out.write(f"""</svg>
+    out.write(
+        f"""</svg>
 </body>
 </html>
-""")
+"""
+    )
 
     sys.exit(f"{cbb}\n")
 
+
 def text_as_text_el(out, text, xfn, yfn):
-    midheight = (yfn(text.y1) + yfn(text.y0))/2
+    midheight = (yfn(text.y1) + yfn(text.y0)) / 2
     atts = [f'x="{xfn(text.x0)}"', f'y="{midheight}"']
     length = abs(xfn(text.x1) - xfn(text.x0))
     atts.append(f'textLength="{length}"')
@@ -69,15 +74,15 @@ def curve_as_path(out, curve, xfn, yfn):
     atts = []
     if curve.stroke:
         atts.append(f'stroke-width="{curve.linewidth}"')
-        atts.append(f'stroke="black"') #@TODO!
+        atts.append(f'stroke="black"')  # @TODO!
     if curve.non_stroking_color:
         # c = curve.non_stroking_color
         # if len(c) == 3:
         #     atts.append(f'fill="rgb({int(100*c[0])}%, {int(100*c[1])}%, {int(100*c[2])}%)"')
         # else:
         atts.append(f'fill="black"')
-        atts.append('onmouseover="evt.target.setAttribute(\'fill\', \'red\');"')
-        atts.append('onmouseout="evt.target.setAttribute(\'fill\', \'black\');"')
+        atts.append("onmouseover=\"evt.target.setAttribute('fill', 'red');\"")
+        atts.append("onmouseout=\"evt.target.setAttribute('fill', 'black');\"")
 
     s = f' <path d="M{pt_str} Z" {" ".join(atts)} />\n'
     out.write(s)
