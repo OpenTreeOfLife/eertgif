@@ -1030,7 +1030,7 @@ def _analyze_text_and_curves(text_lines, curves):
     print(best_tree.root.get_newick(edge_len_scaler))
 
 
-def analyze_figure(fig, params=None):
+def find_text_and_curves(fig, params=None):
     if params is None:
         params = LAParams()
     char_objs = []
@@ -1050,9 +1050,10 @@ def analyze_figure(fig, params=None):
             otherobjs.append(el)
     if char_objs:
         text_lines.extend(list(fig.group_objects(params, char_objs)))
+    return text_lines, otherobjs
 
-    with open("cruft/debug.html", "w") as svg_out:
-        to_svg(svg_out, fig, text_lines, otherobjs)
+
+def filter_text_and_curves(text_lines, otherobjs):
     ftl, fc = [], []
     for line in text_lines:
         # print(line.get_text(), f"@({line.x0}, {line.y0}) - ({line.x1}, {line.y1}) w={line.width} h={line.height}")
@@ -1069,6 +1070,14 @@ def analyze_figure(fig, params=None):
             # print(f"curve from {obj.pts[0]} to {obj.pts[-1]}")
         else:
             print("Unknown", obj, obj.__dict__)
+    return ftl, fc
+
+
+def analyze_figure(fig, params=None):
+    text_lines, otherobjs = find_text_and_curves(fig, params=params)
+    with open("cruft/debug.html", "w") as svg_out:
+        to_svg(svg_out, fig, text_lines, otherobjs)
+    ftl, fc = filter_text_and_curves(text_lines, otherobjs)
     return _analyze_text_and_curves(ftl, fc)
 
 
