@@ -1,4 +1,4 @@
-# extract_newick
+# eertgif
 
 Yet another attempt to scrape phylogenetic
 trees in an interoperable format from a pdf

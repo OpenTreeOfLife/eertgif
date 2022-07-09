@@ -51,7 +51,7 @@ setup(
     install_requires=requires,
     entry_points={
         'paste.app_factory': [
-            'main = ws_wrapper:main',
+            'main = eertgif:main',
         ],
     },
 )
