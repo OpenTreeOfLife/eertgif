@@ -1030,7 +1030,7 @@ def _analyze_text_and_curves(text_lines, curves):
     print(best_tree.root.get_newick(edge_len_scaler))
 
 
-def find_text_and_curves(fig, params=None):
+def find_text_and_curves(fig, params=None) -> UnprocessedRegion:
     if params is None:
         params = LAParams()
     char_objs = []
@@ -1050,7 +1050,7 @@ def find_text_and_curves(fig, params=None):
             otherobjs.append(el)
     if char_objs:
         text_lines.extend(list(fig.group_objects(params, char_objs)))
-    return text_lines, otherobjs
+    return UnprocessedRegion(text_lines, otherobjs)
 
 
 def filter_text_and_curves(text_lines, otherobjs):
@@ -1074,11 +1074,46 @@ def filter_text_and_curves(text_lines, otherobjs):
 
 
 def analyze_figure(fig, params=None):
-    text_lines, otherobjs = find_text_and_curves(fig, params=params)
+    unproc_page = find_text_and_curves(fig, params=params)
     with open("cruft/debug.html", "w") as svg_out:
-        to_svg(svg_out, fig, text_lines, otherobjs)
-    ftl, fc = filter_text_and_curves(text_lines, otherobjs)
+        to_svg(svg_out, fig, unproc_page.text_lines, unproc_page.nontext_objs)
+    ftl, fc = filter_text_and_curves(unproc_page.text_lines, unproc_page.nontext_objs)
     return _analyze_text_and_curves(ftl, fc)
+
+
+class UnprocessedRegion(object):
+    def __init__(self, text_lines, nontext_objs):
+        self.page_num = None
+        self.subpage_num = None
+        self.text_lines = text_lines
+        self.nontext_objs = nontext_objs
+
+    @property
+    def tag(self):
+        if self.page_num is None:
+            assert self.subpage_num is None
+            return ""
+        if self.subpage_num is not None:
+            return f"{self.page_num}-{self.subpage_num}"
+        return str(self.page_num)
+
+
+def get_regions_unprocessed(filepath, params=None):
+    ur = []
+    for n, page_layout in enumerate(extract_pages(filepath)):
+        figures = [el for el in page_layout if isinstance(el, LTFigure)]
+        if figures:
+            for fn, fig in enumerate(figures):
+                unproc_page = find_text_and_curves(fig, params=params)
+                unproc_page.page_num = n
+                unproc_page.subpage_num = fn
+                ur.append(unproc_page)
+        else:
+            # try whole page as figure container
+            unproc_page = find_text_and_curves(page_layout, params=params)
+            unproc_page.page_num = n
+            ur.append(unproc_page)
+    return ur
 
 
 def main(fp):

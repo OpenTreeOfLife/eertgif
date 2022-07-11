@@ -9,8 +9,9 @@
       enctype="multipart/form-data">
 
     <label for="pdf">New pdf to parse</label>
-    <input id="pdf" name="pdf" type="file" accept=".pdf" value="" />
-
+    <input id="pdf" name="pdf" type="file" accept=".pdf" required="true" value="" />
+    <label for="name">Name (short label - only letters, numbers, and spaces allowed).</label>
+    <input id="name" name="name" type="text" required="true" value="" />
     <input type="submit" value="Upload" />
 </form>
 <h3>Previously uploaded</h3>
