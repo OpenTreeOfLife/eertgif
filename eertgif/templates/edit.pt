@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>eertgif: ${tag}</title>
+</head>
+<body>
+<h2>Editing study "${tag}"</h2>
+
+
+<h3>Danger zone</h3>
+<form action="/delete/${tag}" method="POST" accept-charset="utf-8"
+      enctype="multipart/form-data">
+    <input id="really" name="really" type="checkbox" required="true" value="" />
+     <label for="name">Yes, really delete this upload</label>
+    <input type="submit" value="Delete" />
+</form>
+
+<p>When done, you can return to the <a href="/">home</a> index for the eertgif.</p>
+</body>
+</html>

@@ -1,5 +1,5 @@
 from pyramid.response import Response
-from pyramid.httpexceptions import HTTPBadRequest
+from pyramid.httpexceptions import HTTPBadRequest, HTTPFound, HTTPNotFound
 from pyramid.view import view_config
 import os
 import re
@@ -15,7 +15,10 @@ log = logging.getLogger("eertgif")
 
 # _uploads is a global of lists, each contained
 #   list holds:
-#   [tag str, blob dict, dir_for_this_upload, lock]
+#       [tag str, shared_list]
+#   where shared_list holds:
+#       [blob dict, dir_for_this_upload, lock, top_container]
+#   and shared_list is also stored in _uploads_by_tag
 # Use scan_for_uploads to refresh the _uploads
 #   global.
 _uploads = []
@@ -44,34 +47,36 @@ def _find_uploads(uploads_dir):
         except:
             log.debug(f"Did not find a info blob with 'tag' at {ifp}")
         else:
-            found_uploads.append([blob["tag"], blob, fp, None])
+            found_uploads.append([blob["tag"], [blob, fp, None, None]])
     return found_uploads
 
 
 def _lock_held_udict_from_list():
     """Fills _uploads_by_tag from _uploads. Caller must hold _upload_lock !
 
-    Creates"""
+    fills _uploads_by_tag """
     d = dict(_uploads_by_tag)
     _uploads_by_tag.clear()
     for u in _uploads:
-        tag = u[0]
+        tag, shared_list = u
         prev = d.get(tag)
         if prev is None:
-            lock = u[3]
+            lock = shared_list[2]
             if lock is None:
                 lock = Lock()
-                u[3] = lock
-            _uploads_by_tag[tag] = [u[1], u[2], lock]
+                shared_list[2] = lock
+            _uploads_by_tag[tag] = shared_list
         else:
             _uploads_by_tag[tag] = prev
+    return _uploads, _uploads_by_tag
 
 
 def force_add_upload_dir(tag, dest_dir):
     """Returns the study lock."""
     with _upload_lock:
         nl = Lock()
-        _uploads.append([tag, {}, dest_dir, nl])
+        shared_list = [{}, dest_dir, nl, None]
+        _uploads.append([tag, shared_list])
         _lock_held_udict_from_list()
     return nl
 
@@ -79,14 +84,16 @@ def force_add_upload_dir(tag, dest_dir):
 def scan_for_uploads(uploads_dir):
     global _uploads, _up_dir
     found_uploads = _find_uploads(uploads_dir)
+    u, bt = [], {}
     with _upload_lock:
         _uploads[:] = found_uploads[:]  # replace contents
         _up_dir = uploads_dir
         _lock_held_udict_from_list()
-    return _uploads
+        u, bt = _uploads, _uploads_by_tag
+    return u, bt
 
 
-class EeertgifView:
+class EertgifView:
     def __init__(self, request):
         self.request = request
         settings = self.request.registry.settings
@@ -98,25 +105,56 @@ class EeertgifView:
         """Returns a list of a shallow copy of _uploads, and _uploads_by_tag"""
         with _upload_lock:
             u = list(_uploads)
+            bt = dict(_uploads_by_tag)
         if not u:
-            u = list(scan_for_uploads(self.uploads_dir))
-        return u, dict(_uploads_by_tag)
+            tup = scan_for_uploads(self.uploads_dir)
+            u = list(tup[0])
+            bt = dict(tup[1])
+        return u, bt
+
+    def _get_shared_list_for_upload(self, tag):
+        ubt = self._uploads()[1]
+        r = ubt.get(tag)
+        if r is None:  # Force scan
+            tup = scan_for_uploads(self.uploads_dir)
+            ubt = dict(tup[1])
+            r = ubt.get(tag)
+        return r
 
     @view_config(route_name="eertgif:home", renderer="templates/home.pt")
-    def eertgif_home_view(self):
+    def home_view(self):
         u = self._uploads()[0]
         tags = [i[0] for i in u]
         return {"tags": tags}
 
     @view_config(route_name="eertgif:about", renderer="templates/about.pt")
-    def eertgif_about_view(self):
+    def about_view(self):
         return {"name": "About View"}
 
+    @view_config(route_name="eertgif:edit", renderer="templates/edit.pt")
+    def edit_view(self):
+        tag = self.request.matchdict["tag"]
+        return {"tag": tag}
+
     @view_config(
-        route_name="eertgif:upload",
-        renderer="templates/upload.pt",
+        route_name="eertgif:delete",
+        renderer="templates/delete.pt",
         request_method="POST",
     )
+    def delete_view(self):
+        tag = self.request.matchdict["tag"]
+        shared_list = self._get_shared_list_for_upload(tag)
+        if shared_list is None:
+            return HTTPNotFound(f'unknown upload "{tag}"')
+        info_blob, tmp_dir, study_lock, top_cont = shared_list
+        log.debug(f"study_lock = {study_lock}")
+        with study_lock:
+            tc = info_blob.get("to_clean", [])
+            if not clean_files_and_dir_no_raise(tc, tmp_dir):
+                log.info(f"Failed to remove {tmp_dir}")
+            force_remove_study_from_upload_globals(tag)
+
+    @view_config(route_name="eertgif:upload", request_method="POST")
     def upload_pdf(self):
         """
 
@@ -158,7 +196,7 @@ class EeertgifView:
             except:
                 log.exception(f"pdf parse failure")
                 clean_files_and_dir_no_raise(to_clean, dest_dir)
-                force_remove_study(tag)
+                force_remove_study_from_upload_globals(tag)
                 return HTTPBadRequest(
                     f'Uploaded "{filename}" could not be processed as a pdf file'
                 )
@@ -177,7 +215,7 @@ class EeertgifView:
             except TypeError as x:
                 log.exception(f"Pickle failure")
                 clean_files_and_dir_no_raise(to_clean, dest_dir)
-                force_remove_study(tag)
+                force_remove_study_from_upload_globals(tag)
                 return HTTPBadRequest(
                     f"Unexpected error in storing segments of uploaded file."
                 )
@@ -187,10 +225,10 @@ class EeertgifView:
             b = _uploads_by_tag.get(tag)
             if b is not None:
                 b[1] = blob
-        return Response("OK")
+        return HTTPFound(location=f"/edit/{tag}")
 
 
-def force_remove_study(tag):
+def force_remove_study_from_upload_globals(tag):
     log.debug(f'force removing "{tag}"')
     with _upload_lock:
         if tag in _uploads_by_tag:
