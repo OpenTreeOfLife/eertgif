@@ -1,8 +1,10 @@
 # eertgif
 
+This is an experimental-stage project. 
+
 Yet another attempt to scrape phylogenetic
 trees in an interoperable format from a pdf
-image of a tree
+with an image of a tree in it.
 
 #### Credits
   * Relies heavily on [pdfminer.six](https://github.com/pdfminer/pdfminer.six)

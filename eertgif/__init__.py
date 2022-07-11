@@ -17,8 +17,9 @@ def main(global_config, **settings):
     # config.add_route('home', '/')
     log.debug("Read configuration...")
 
-    config.add_route("eertgif:home", "/eertgif/")
-    config.add_route("eertgif:about", "/eertgif/about")
+    config.add_route("eertgif:home", "/")
+    config.add_route("eertgif:about", "/about")
+    config.add_route("eertgif:upload", "/upload")
 
     config.scan(".views")
     log.debug("Added routes.")

@@ -1,8 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>eertgif: ${name}</title>
+    <title>eertgif</title>
 </head>
 <body>
+<h2>eertgif</h2>
+<p>Yet another tool for extracting phylogenetic trees
+	(in the <a href="https://en.wikipedia.org/wiki/Newick_format" target="_blank">Newick</a>
+format) from figures of trees in pdfs.</p>
+<p>See <a href="https://github.com/OpenTreeOfLife/eertgif" target="_blank">https://github.com/OpenTreeOfLife/eertgif</a> for code, documentation, and other information.</p>
 </body>
 </html>
