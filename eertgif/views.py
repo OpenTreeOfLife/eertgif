@@ -78,7 +78,7 @@ def force_add_upload_dir(tag, dest_dir):
         shared_list = [{}, dest_dir, nl, None]
         _uploads.append([tag, shared_list])
         _lock_held_udict_from_list()
-    return nl
+    return shared_list
 
 
 def scan_for_uploads(uploads_dir):
@@ -99,7 +99,6 @@ class EertgifView:
         settings = self.request.registry.settings
         self.uploads_dir = settings.get("uploads.dir", "pdfs")
         self.debug_mode = settings.get("debug_mode", False)
-        log.debug(f"self.debug_mode = {repr(self.debug_mode)}")
 
     def _uploads(self):
         """Returns a list of a shallow copy of _uploads, and _uploads_by_tag"""
@@ -136,23 +135,20 @@ class EertgifView:
         tag = self.request.matchdict["tag"]
         return {"tag": tag}
 
-    @view_config(
-        route_name="eertgif:delete",
-        renderer="templates/delete.pt",
-        request_method="POST",
-    )
+    @view_config(route_name="eertgif:delete", request_method="POST")
     def delete_view(self):
         tag = self.request.matchdict["tag"]
         shared_list = self._get_shared_list_for_upload(tag)
         if shared_list is None:
             return HTTPNotFound(f'unknown upload "{tag}"')
         info_blob, tmp_dir, study_lock, top_cont = shared_list
-        log.debug(f"study_lock = {study_lock}")
+        log.debug(f"shared_list = {shared_list}")
         with study_lock:
             tc = info_blob.get("to_clean", [])
             if not clean_files_and_dir_no_raise(tc, tmp_dir):
                 log.info(f"Failed to remove {tmp_dir}")
             force_remove_study_from_upload_globals(tag)
+        return HTTPFound(location=f"/")
 
     @view_config(route_name="eertgif:upload", request_method="POST")
     def upload_pdf(self):
@@ -171,10 +167,14 @@ class EertgifView:
                 f'"{tag}" is already in use. Choose a new name, or delete the existing study with that name'
             )
         dest_dir = tempfile.mkdtemp(dir=self.uploads_dir)
-        study_lock = force_add_upload_dir(tag, dest_dir)
+        shared_list = force_add_upload_dir(tag, dest_dir)
+        blob, tmp_dir, study_lock, top_cont = shared_list
         with study_lock:
+            assert top_cont is None
+            assert tmp_dir == dest_dir
             to_clean = []
-            blob = {"tag": tag, "to_clean": to_clean}
+            blob["tag"] = tag
+            blob["to_clean"] = to_clean
             to_clean.append(_serialize_info_blob_unlocked(blob, dest_dir))
 
             filename = self.request.POST["pdf"].filename
@@ -221,10 +221,6 @@ class EertgifView:
                 )
             blob["unprocessed"] = pickled
             _serialize_info_blob_unlocked(blob, dest_dir)
-        with _upload_lock:
-            b = _uploads_by_tag.get(tag)
-            if b is not None:
-                b[1] = blob
         return HTTPFound(location=f"/edit/{tag}")
 
 
