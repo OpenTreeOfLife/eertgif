@@ -53,7 +53,7 @@ def to_svg(out, container, text_lines, objects):
 """
     )
 
-    sys.exit(f"{cbb}\n")
+    # sys.exit(f"{cbb}\n")
 
 
 def text_as_text_el(out, text, xfn, yfn):

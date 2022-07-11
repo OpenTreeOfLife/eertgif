@@ -174,7 +174,7 @@ class EeertgifView:
                     with open(pfp, "wb") as f_out:
                         pickle.dump(ur, f_out, protocol=pickle.HIGHEST_PROTOCOL)
                     pickled.append(pf)
-            except:
+            except TypeError as x:
                 log.exception(f"Pickle failure")
                 clean_files_and_dir_no_raise(to_clean, dest_dir)
                 force_remove_study(tag)

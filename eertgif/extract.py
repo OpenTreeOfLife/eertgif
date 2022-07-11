@@ -17,18 +17,27 @@ from pdfminer.layout import (
     LTTextBox,
     LTTextBoxHorizontal,
     LTTextBoxVertical,
+    LTImage,
 )
 from pdfminer.utils import fsplit, Point, Rect
 from math import sqrt
 from enum import IntEnum, Enum
 from .to_svg import to_svg
 
+import logging
+
+log = logging.getLogger("eertgif")
 # Includes some code from pdfminer layout.py
 
 VERBOSE = True
 COORD_TOL = 1.0e-3
 MIN_BR_TOL = 1.0e-4
 DEFAULT_LABEL_GAP = 10
+
+
+def set_verbose(v):
+    global VERBOSE
+    VERBOSE = v
 
 
 def debug(msg: str, msg_list: List[Any] = None) -> None:
@@ -1030,6 +1039,9 @@ def _analyze_text_and_curves(text_lines, curves):
     print(best_tree.root.get_newick(edge_len_scaler))
 
 
+_skip_types = set([LTImage])
+
+
 def find_text_and_curves(fig, params=None) -> UnprocessedRegion:
     if params is None:
         params = LAParams()
@@ -1046,8 +1058,10 @@ def find_text_and_curves(fig, params=None) -> UnprocessedRegion:
                     text_lines.append(sel)
         elif isinstance(el, LTTextLine):
             text_lines.append(el)
-        else:
+        elif type(el) not in _skip_types:
             otherobjs.append(el)
+        else:
+            log.debug(f"Skipping element of type {type(el)}")
     if char_objs:
         text_lines.extend(list(fig.group_objects(params, char_objs)))
     return UnprocessedRegion(text_lines, otherobjs)

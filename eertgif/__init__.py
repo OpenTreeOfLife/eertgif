@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 __all__ = ["extract", "to_svg", "views"]
+
 from pyramid.config import Configurator
 
 import logging
