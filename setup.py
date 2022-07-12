@@ -20,6 +20,7 @@ requires = [
     'waitress',
     'WebTest',
     'pdfminer.six',
+    'Pillow >= 9.2.0',
 ]
 
 dev_requires = [

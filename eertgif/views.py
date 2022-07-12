@@ -1,5 +1,6 @@
 from pyramid.response import Response
-from pyramid.httpexceptions import HTTPBadRequest, HTTPFound, HTTPNotFound
+from pyramid.httpexceptions import HTTPConflict, HTTPBadRequest, HTTPFound, HTTPNotFound
+from typing import Optional
 from pyramid.view import view_config
 import os
 import re
@@ -10,6 +11,7 @@ import pickle
 from threading import Lock
 import shutil
 from .extract import get_regions_unprocessed
+from pdfminer.image import ImageWriter
 
 log = logging.getLogger("eertgif")
 
@@ -93,6 +95,47 @@ def scan_for_uploads(uploads_dir):
     return u, bt
 
 
+class StudyContainer(object):
+    """Caller of methods must obtain lock, first."""
+
+    def __init__(self, info_blob, par_dir):
+        self.blob = info_blob
+        self.par_dir = par_dir
+        self._page_ids = None
+        self._image_ids = None
+
+    @property
+    def pickles_names(self):
+        return self.blob.get("unprocessed", [])
+
+    @property
+    def all_file_paths(self):
+        return self.blob.get("to_clean", [])
+
+    @property
+    def page_ids(self):
+        if self._page_ids is None:
+            lensuf = len(".pickle")
+            self._page_ids = [i[:-lensuf] for i in self.pickles_names]
+        return self._page_ids
+
+    @property
+    def image_ids(self):
+        if self._image_ids is None:
+            ipath = f"{os.sep}img{os.sep}"
+            self._image_ids = [
+                os.path.split(i)[-1] for i in self.all_file_paths if ipath in i
+            ]
+        return self._image_ids
+
+    def path_to_image(self, img_id) -> Optional[str]:
+        suffix = f"{os.sep}img{os.sep}{img_id}"
+        for i in self.all_file_paths:
+            if i.endswith(suffix):
+                return i
+        return None
+
+
 class EertgifView:
     def __init__(self, request):
         self.request = request
@@ -118,7 +161,20 @@ class EertgifView:
             tup = scan_for_uploads(self.uploads_dir)
             ubt = dict(tup[1])
             r = ubt.get(tag)
+        if r is None:
+            raise HTTPNotFound(f'unknown upload "{tag}"')
         return r
+
+    def _get_lock_and_top(self, tag):
+        shared_list = self._get_shared_list_for_upload(tag)
+        info_blob, tmp_dir, study_lock, top_cont = shared_list
+        if top_cont is None:
+            with study_lock:
+                top_cont = shared_list[-1]
+                if top_cont is None:
+                    top_cont = StudyContainer(info_blob, tmp_dir)
+                    shared_list[-1] = top_cont
+        return study_lock, top_cont
 
     @view_config(route_name="eertgif:home", renderer="templates/home.pt")
     def home_view(self):
@@ -133,14 +189,45 @@ class EertgifView:
     @view_config(route_name="eertgif:edit", renderer="templates/edit.pt")
     def edit_view(self):
         tag = self.request.matchdict["tag"]
-        return {"tag": tag}
+        study_lock, top_cont = self._get_lock_and_top(tag)
+        pages, images = [], []
+        with study_lock:
+            pages = list(top_cont.page_ids)
+            images = list(top_cont.image_ids)
+        return {"tag": tag, "pages": pages, "images": images}
+
+    @view_config(route_name="eertgif:view")
+    def view_view(self):
+        tag = self.request.matchdict["tag"]
+        img_id = self.request.params.get("image")
+        if img_id is None:
+            page_id = self.request.params.get("page")
+            if page_id is None:
+                return HTTPFound(location="/edit/{tag}")
+            return HTTPFound(location="/edit/{tag}?page={page_id}")
+        shared_list = self._get_shared_list_for_upload(tag)
+        study_lock, top_cont = self._get_lock_and_top(tag)
+        with study_lock:
+            path_to_image = top_cont.path_to_image(img_id)
+        if path_to_image is None:
+            return HTTPNotFound(f"Image {img_id} in {tag} does not exist")
+        try:
+            with open(path_to_image, "rb") as inp:
+                image_blob = inp.read()
+        except:
+            return HTTPConflict(
+                "Server-side mage {img_id} in {tag} does not is not parsable."
+            )
+        ext = img_id.split(".")[-1]
+        resp = self.request.response
+        resp.content_type = f"image/{ext}"
+        resp.body = image_blob
+        return resp
 
     @view_config(route_name="eertgif:delete", request_method="POST")
     def delete_view(self):
         tag = self.request.matchdict["tag"]
         shared_list = self._get_shared_list_for_upload(tag)
-        if shared_list is None:
-            return HTTPNotFound(f'unknown upload "{tag}"')
         info_blob, tmp_dir, study_lock, top_cont = shared_list
         log.debug(f"shared_list = {shared_list}")
         with study_lock:
@@ -148,7 +235,7 @@ class EertgifView:
             if not clean_files_and_dir_no_raise(tc, tmp_dir):
                 log.info(f"Failed to remove {tmp_dir}")
             force_remove_study_from_upload_globals(tag)
-        return HTTPFound(location=f"/")
+        return HTTPFound(location="/")
 
     @view_config(route_name="eertgif:upload", request_method="POST")
     def upload_pdf(self):
@@ -191,8 +278,15 @@ class EertgifView:
             os.rename(temp_file_path, file_path)
             to_clean.append(file_path)
 
+            img_dir = os.path.join(dest_dir, "img")
+            iw = ImageWriter(os.path.join(img_dir))
+            to_clean.append(img_dir)
+
             try:
-                unproc_regions = get_regions_unprocessed(file_path)
+                unproc_regions, image_paths = get_regions_unprocessed(
+                    file_path, image_writer=iw
+                )
+                to_clean.extend([os.path.join(img_dir, i) for i in image_paths])
             except:
                 log.exception(f"pdf parse failure")
                 clean_files_and_dir_no_raise(to_clean, dest_dir)
@@ -249,15 +343,26 @@ def _serialize_info_blob_unlocked(blob, dest_dir):
 
 
 def clean_files_and_dir_no_raise(to_clean, dest_dir):
+    dirs_to_rm = []
     for fp in to_clean:
         try:
-            os.remove(fp)
+            if os.path.isdir(fp):
+                dirs_to_rm.append(fp)
+            else:
+                os.remove(fp)
+
         except:
             log.exception(f'Temp file "{fp}" could not be deleted.')
             pass
-    try:
-        os.rmdir(dest_dir)
-    except:
-        log.error(f'Temp dir "{dest_dir}" could not be deleted.')
-        return False
-    return True
+    # shortest first to delete in postorder
+    dtr = [(len(i), i) for i in dirs_to_rm]
+    dtr.sort()
+    dtr.append((None, dest_dir))
+    success = True
+    for d in [i[1] for i in dtr]:
+        try:
+            os.rmdir(d)
+        except:
+            log.error(f'Temp dir "{d}" could not be deleted.')
+            success = False
+    return success

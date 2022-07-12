@@ -5,7 +5,7 @@ import sys
 import re
 from collections import namedtuple
 from io import StringIO
-from typing import List, Any, Dict, Set, Tuple, Union
+from typing import List, Any, Dict, Set, Tuple, Union, Optional
 from pdfminer.high_level import extract_pages, LAParams
 from pdfminer.layout import (
     LTChar,
@@ -1042,12 +1042,15 @@ def _analyze_text_and_curves(text_lines, curves):
 _skip_types = set([LTImage])
 
 
-def find_text_and_curves(fig, params=None) -> UnprocessedRegion:
+def find_text_and_curves(
+    fig, params=None, image_writer=None
+) -> Tuple[UnprocessedRegion, List[str]]:
     if params is None:
         params = LAParams()
     char_objs = []
     text_lines = []
     otherobjs = []
+    image_paths = []
     for el in fig:
         if isinstance(el, LTChar):
             char_objs.append(el)
@@ -1061,10 +1064,19 @@ def find_text_and_curves(fig, params=None) -> UnprocessedRegion:
         elif type(el) not in _skip_types:
             otherobjs.append(el)
         else:
-            log.debug(f"Skipping element of type {type(el)}")
+            if image_writer is not None and isinstance(el, LTImage):
+                log.debug(f"Exporting {type(el)}")
+                try:
+                    name = image_writer.export_image(el)
+                except:
+                    log.exception("image export failed")
+                else:
+                    image_paths.append(name)
+            else:
+                log.debug(f"Skipping element of type {type(el)}")
     if char_objs:
         text_lines.extend(list(fig.group_objects(params, char_objs)))
-    return UnprocessedRegion(text_lines, otherobjs)
+    return UnprocessedRegion(text_lines, otherobjs), image_paths
 
 
 def filter_text_and_curves(text_lines, otherobjs):
@@ -1088,7 +1100,7 @@ def filter_text_and_curves(text_lines, otherobjs):
 
 
 def analyze_figure(fig, params=None):
-    unproc_page = find_text_and_curves(fig, params=params)
+    unproc_page = find_text_and_curves(fig, params=params)[0]
     with open("cruft/debug.html", "w") as svg_out:
         to_svg(svg_out, fig, unproc_page.text_lines, unproc_page.nontext_objs)
     ftl, fc = filter_text_and_curves(unproc_page.text_lines, unproc_page.nontext_objs)
@@ -1112,22 +1124,29 @@ class UnprocessedRegion(object):
         return str(self.page_num)
 
 
-def get_regions_unprocessed(filepath, params=None):
+def get_regions_unprocessed(filepath, params=None, image_writer=None):
     ur = []
+    image_paths = []
     for n, page_layout in enumerate(extract_pages(filepath)):
         figures = [el for el in page_layout if isinstance(el, LTFigure)]
         if figures:
             for fn, fig in enumerate(figures):
-                unproc_page = find_text_and_curves(fig, params=params)
+                unproc_page, imgs = find_text_and_curves(
+                    fig, params=params, image_writer=image_writer
+                )
+                image_paths.extend(imgs)
                 unproc_page.page_num = n
                 unproc_page.subpage_num = fn
                 ur.append(unproc_page)
         else:
             # try whole page as figure container
-            unproc_page = find_text_and_curves(page_layout, params=params)
+            unproc_page, imgs = find_text_and_curves(
+                page_layout, params=params, image_writer=image_writer
+            )
+            image_paths.extend(imgs)
             unproc_page.page_num = n
             ur.append(unproc_page)
-    return ur
+    return ur, image_paths
 
 
 def main(fp):

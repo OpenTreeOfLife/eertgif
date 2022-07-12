@@ -5,9 +5,26 @@
 </head>
 <body>
 <h2>Editing study "${tag}"</h2>
+<hr />
+<h3>Parsable regions</h3>
+<table>
+  <tr tal:repeat="page pages">
+    <td><a href="/edit/${tag}?page=${page}">${page}</a></td>
+  </tr>
+</table>
+<hr />
 
+<h3>Unparsable images</h3>
+<table>
+  <tr tal:repeat="img images">
+    <td><a href="/view/${tag}?image=${img}">
+    	<img src="/view/${tag}?image=${img}" alt="unparsable image ${img} of ${tag}" height="75px"/>
+    	</a>
+	</td>
+  </tr>
+</table>
 
-<h3>Danger zone</h3>
+<h2>Danger zone</h2>
 <form action="/delete/${tag}" method="POST" accept-charset="utf-8"
       enctype="multipart/form-data">
     <input id="really" name="really" type="checkbox" required="true" value="" />
