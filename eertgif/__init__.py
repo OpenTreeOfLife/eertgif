@@ -2,6 +2,7 @@
 __all__ = ["extract", "study_container", "to_svg", "views"]
 
 from pyramid.config import Configurator
+import os
 
 import logging
 
@@ -15,6 +16,9 @@ def main(global_config, **settings):
     """
     config = Configurator(settings=settings)
     config.include("pyramid_chameleon")
+    abs_path_to_static = os.path.join(os.path.abspath(os.curdir), "static")
+    log.debug(f"abs_path_to_static = {abs_path_to_static}")
+    config.add_static_view(name="static", path=abs_path_to_static)
     # config.add_route('home', '/')
     log.debug("Read configuration...")
 

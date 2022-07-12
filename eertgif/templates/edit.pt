@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <title>eertgif: ${tag}</title>
+    <link rel="stylesheet" type="text/css" href="/static/eertgif.css" />
 </head>
 <body>
 <h2>Editing study "${tag}" <span tal:condition="single_item">region ${pages[0][0]}</span></h2>
