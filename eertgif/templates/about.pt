@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <title>eertgif</title>
+    <link rel="stylesheet" type="text/css" href="/static/eertgif.css" />
 </head>
 <body>
 <h2>eertgif</h2>
