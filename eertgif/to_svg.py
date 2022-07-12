@@ -52,7 +52,7 @@ def to_svg(out, unproc_region=None):
     yfn = lambda y: cbb[3] - y  # pdf y=0 is bottom, but svg is top
 
     out.write(
-        f"""<svg width="{width}" height="{height}" > 
+        f"""<svg viewBox="0 0 {width} {height}" > 
 """
     )
     # log.debug(f"unproc_region.nontext_objs = {unproc_region.nontext_objs}")
