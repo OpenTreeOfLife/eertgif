@@ -4,12 +4,15 @@
     <title>eertgif: ${tag}</title>
 </head>
 <body>
-<h2>Editing study "${tag}"</h2>
+<h2>Editing study "${tag}" <span tal:condition="single_item">region ${pages[0][0]}</span></h2>
+<div tal:condition="not single_item">
 <hr />
 <h3>Parsable regions</h3>
 <table>
+  <tr><th>Page/Region</th><th>Tree status</th></tr>
   <tr tal:repeat="page pages">
-    <td><a href="/edit/${tag}?page=${page}">${page}</a></td>
+    <td><a href="/edit/${tag}?page=${page[0]}">${page[0]}</a></td>
+    <td>${page[1]}</td>
   </tr>
 </table>
 <hr />
@@ -33,5 +36,12 @@
 </form>
 
 <p>When done, you can return to the <a href="/">home</a> index for the eertgif.</p>
+</div>
+
+<div tal:condition="single_item">
+
+<p>Back to full study view at <a href="/edit/${tag}">edit/${tag}</a>.</p>
+</div>
+
 </body>
 </html>

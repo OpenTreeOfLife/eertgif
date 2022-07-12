@@ -103,6 +103,7 @@ class StudyContainer(object):
         self.par_dir = par_dir
         self._page_ids = None
         self._image_ids = None
+        self._page_status_list = None
 
     @property
     def pickles_names(self):
@@ -117,6 +118,8 @@ class StudyContainer(object):
         if self._page_ids is None:
             lensuf = len(".pickle")
             self._page_ids = [i[:-lensuf] for i in self.pickles_names]
+            # TODO page status diagnosis?
+            self._page_status_list = ["unknown"] * len(self._page_ids)
         return self._page_ids
 
     @property
@@ -127,6 +130,12 @@ class StudyContainer(object):
                 os.path.split(i)[-1] for i in self.all_file_paths if ipath in i
             ]
         return self._image_ids
+
+    @property
+    def page_status_list(self):
+        if self._page_status_list is None:
+            x = self.page_ids  # side effect of filling page_ids
+        return self._page_status_list
 
     def path_to_image(self, img_id) -> Optional[str]:
         suffix = f"{os.sep}img{os.sep}{img_id}"
@@ -189,12 +198,32 @@ class EertgifView:
     @view_config(route_name="eertgif:edit", renderer="templates/edit.pt")
     def edit_view(self):
         tag = self.request.matchdict["tag"]
+        page_id = self.request.params.get("page")
         study_lock, top_cont = self._get_lock_and_top(tag)
         pages, images = [], []
+        page_status = []
         with study_lock:
             pages = list(top_cont.page_ids)
             images = list(top_cont.image_ids)
-        return {"tag": tag, "pages": pages, "images": images}
+            page_status = list(top_cont.page_status_list)
+        pages = [(i, page_status[n]) for n, i in enumerate(pages)]
+        single_item = False
+        if page_id is not None:
+            p = None
+            for page_tup in pages:
+                if page_tup[0] == page_id:
+                    p = page_tup
+            if p is None:
+                return HTTPNotFound(f"Region/Page {page_id} in {tag} does not exist.")
+            pages = [p]
+            images = []
+            single_item = True
+        return {
+            "tag": tag,
+            "pages": pages,
+            "images": images,
+            "single_item": single_item,
+        }
 
     @view_config(route_name="eertgif:view")
     def view_view(self):
@@ -210,7 +239,7 @@ class EertgifView:
         with study_lock:
             path_to_image = top_cont.path_to_image(img_id)
         if path_to_image is None:
-            return HTTPNotFound(f"Image {img_id} in {tag} does not exist")
+            return HTTPNotFound(f"Image {img_id} in {tag} does not exist.")
         try:
             with open(path_to_image, "rb") as inp:
                 image_blob = inp.read()
