@@ -5,14 +5,16 @@ from typing import Optional
 from pyramid.view import view_config
 import os
 import re
+from io import StringIO
 import logging
 import json
 import tempfile
 import pickle
 from threading import Lock
 import shutil
-from .extract import get_regions_unprocessed
+from .extract import get_regions_unprocessed, UnprocessedRegion
 from .study_container import StudyContainer
+from .to_svg import to_svg
 from pdfminer.image import ImageWriter
 
 log = logging.getLogger("eertgif")
@@ -99,6 +101,7 @@ def scan_for_uploads(uploads_dir):
 
 class EertgifView:
     def __init__(self, request):
+        log.debug(f"{request.url} called")
         self.request = request
         settings = self.request.registry.settings
         self.uploads_dir = settings.get("uploads.dir", "scratch")
@@ -160,21 +163,35 @@ class EertgifView:
             page_status = list(top_cont.page_status_list)
         pages = [(i, page_status[n]) for n, i in enumerate(pages)]
         single_item = False
+        svg = None
         if page_id is not None:
             p = None
-            for page_tup in pages:
+            idx = None
+            for n, page_tup in enumerate(pages):
                 if page_tup[0] == page_id:
                     p = page_tup
+                    idx = n
+                    break
             if p is None:
                 return HTTPNotFound(f"Region/Page {page_id} in {tag} does not exist.")
             pages = [p]
             images = []
             single_item = True
+            try:
+                with study_lock:
+                    object_for_region = top_cont.object_for_region(idx)
+            except RuntimeError as x:
+                return HTTPConflict(str(x.args[0]))
+            if isinstance(object_for_region, UnprocessedRegion):
+                x = StringIO()
+                to_svg(x, unproc_region=object_for_region)
+                svg = x.getvalue()
         return {
             "tag": tag,
             "pages": pages,
             "images": images,
             "single_item": single_item,
+            "svg": svg,
         }
 
     @view_config(route_name="eertgif:view")

@@ -2,3 +2,4 @@ pdfminer.six
 save.sh
 eertgif.egg-info
 eertgif.log
+*.log

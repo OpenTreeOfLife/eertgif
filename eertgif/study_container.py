@@ -26,6 +26,7 @@ class StudyContainer(object):
         self._page_ids = None
         self._image_ids = None
         self._page_status_list = None
+        self._obj_for_regions = None
 
     @property
     def pickles_names(self):
@@ -41,7 +42,9 @@ class StudyContainer(object):
             lensuf = len(".pickle")
             self._page_ids = [i[:-lensuf] for i in self.pickles_names]
             # TODO page status diagnosis?
-            self._page_status_list = ["unknown"] * len(self._page_ids)
+            npi = len(self._page_ids)
+            self._page_status_list = ["unknown"] * npi
+            self._obj_for_regions = [None] * npi
         return self._page_ids
 
     @property
@@ -59,8 +62,34 @@ class StudyContainer(object):
             x = self.page_ids  # side effect of filling page_ids
         return self._page_status_list
 
+    def object_for_region(self, idx):
+        pg_id = self.page_ids[idx]  # side effect of filling page_ids
+        o = self._obj_for_regions[idx]
+        if o is None:
+            pickle_path = self.path_to_pickle(pg_id)
+            if not pickle_path:
+                msg = f"Could not find storage for page/region {pg_id}"
+                log.exception(msg)
+                raise RuntimeError(msg)
+            try:
+                with open(pickle_path, "rb") as pinp:
+                    o = pickle.load(pinp)
+            except:
+                msg = f"Error unpacking storage for page/region {pg_id}"
+                log.exception(msg)
+                raise RuntimeError(msg)
+            self._obj_for_regions[idx] = o
+        return o
+
     def path_to_image(self, img_id) -> Optional[str]:
         suffix = f"{os.sep}img{os.sep}{img_id}"
+        for i in self.all_file_paths:
+            if i.endswith(suffix):
+                return i
+        return None
+
+    def path_to_pickle(self, pg_id) -> Optional[str]:
+        suffix = f"{os.sep}{pg_id}.pickle"
         for i in self.all_file_paths:
             if i.endswith(suffix):
                 return i

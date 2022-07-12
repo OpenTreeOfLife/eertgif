@@ -22,11 +22,11 @@ from pdfminer.layout import (
 from pdfminer.utils import fsplit, Point, Rect
 from math import sqrt
 from enum import IntEnum, Enum
-from .to_svg import to_svg
+from .to_svg import to_html
 
 import logging
 
-log = logging.getLogger("eertgif")
+log = logging.getLogger("eertgif.extract")
 # Includes some code from pdfminer layout.py
 
 VERBOSE = True
@@ -1076,7 +1076,7 @@ def find_text_and_curves(
                 log.debug(f"Skipping element of type {type(el)}")
     if char_objs:
         text_lines.extend(list(fig.group_objects(params, char_objs)))
-    return UnprocessedRegion(text_lines, otherobjs), image_paths
+    return UnprocessedRegion(text_lines, otherobjs, fig), image_paths
 
 
 def filter_text_and_curves(text_lines, otherobjs):
@@ -1102,17 +1102,18 @@ def filter_text_and_curves(text_lines, otherobjs):
 def analyze_figure(fig, params=None):
     unproc_page = find_text_and_curves(fig, params=params)[0]
     with open("cruft/debug.html", "w") as svg_out:
-        to_svg(svg_out, fig, unproc_page.text_lines, unproc_page.nontext_objs)
+        to_html(svg_out, unproc_region=unproc_page)
     ftl, fc = filter_text_and_curves(unproc_page.text_lines, unproc_page.nontext_objs)
     return _analyze_text_and_curves(ftl, fc)
 
 
 class UnprocessedRegion(object):
-    def __init__(self, text_lines, nontext_objs):
+    def __init__(self, text_lines, nontext_objs, container):
         self.page_num = None
         self.subpage_num = None
         self.text_lines = text_lines
         self.nontext_objs = nontext_objs
+        self.container_bbox = tuple(container.bbox)
 
     @property
     def tag(self):

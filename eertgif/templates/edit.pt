@@ -44,8 +44,11 @@
 </div>
 
 <div tal:condition="single_item">
+    <div tal:condition="svg">
+        <p tal:content="structure svg"></p>
+    </div>
 
-<p>Back to full study view at <a href="/edit/${tag}">edit/${tag}</a>.</p>
+    <p>Back to full study view at <a href="/edit/${tag}">edit/${tag}</a>.</p>
 </div>
 
 </body>

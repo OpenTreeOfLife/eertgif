@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import sys
 import re
 import html
 from collections import namedtuple
@@ -22,38 +21,51 @@ from pdfminer.layout import (
 from pdfminer.utils import fsplit, Point, Rect
 from math import sqrt
 from enum import IntEnum, Enum
+import logging
+
+log = logging.getLogger("eertgif.to_svg")
 
 
-def to_svg(out, container, text_lines, objects):
-    cbb = container.bbox
+def to_html(out, unproc_region=None):
+    out.write(
+        f"""<!DOCTYPE html>
+<html>
+<body>
+<div>
+"""
+    )
+    to_svg(out, unproc_region=unproc_region)
+    out.write(
+        """</div>
+</body>
+</html>
+"""
+    )
+
+
+def to_svg(out, unproc_region=None):
+    assert unproc_region is not None
+    cbb = unproc_region.container_bbox
     height = cbb[3] - cbb[1]
     width = cbb[2] - cbb[0]
     xfn = lambda x: x - cbb[0]
     yfn = lambda y: cbb[3] - y  # pdf y=0 is bottom, but svg is top
 
     out.write(
-        f"""<!DOCTYPE html>
-<html>
-<body>
-<svg width="{width}" height="{height}" > 
+        f"""<svg width="{width}" height="{height}" > 
 """
     )
-    for n, o in enumerate(objects):
+    log.debug(f"unproc_region.nontext_objs = {unproc_region.nontext_objs}")
+    for n, o in enumerate(unproc_region.nontext_objs):
         if isinstance(o, LTCurve):
             curve_as_path(out, o, xfn, yfn)
         else:
-            sys.stderr.write(f"Skipping {o} in SVG export...\n")
-    for n, text in enumerate(text_lines):
-        sys.stderr.write(f"text {1+n}: {text} {text.__dict__}\n")
+            log.debug(f"Skipping {o} in SVG export...\n")
+    log.debug(f"unproc_region.text_lines = {unproc_region.nontext_objs}")
+    for n, text in enumerate(unproc_region.text_lines):
+        log.debug(f"text {1+n}: {text} {text.__dict__}\n")
         text_as_text_el(out, text, xfn, yfn)
-    out.write(
-        f"""</svg>
-</body>
-</html>
-"""
-    )
-
-    # sys.exit(f"{cbb}\n")
+    out.write("</svg>")
 
 
 def text_as_text_el(out, text, xfn, yfn):
