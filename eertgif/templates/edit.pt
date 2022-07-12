@@ -6,36 +6,41 @@
 <body>
 <h2>Editing study "${tag}" <span tal:condition="single_item">region ${pages[0][0]}</span></h2>
 <div tal:condition="not single_item">
-<hr />
-<h3>Parsable regions</h3>
-<table>
-  <tr><th>Page/Region</th><th>Tree status</th></tr>
-  <tr tal:repeat="page pages">
-    <td><a href="/edit/${tag}?page=${page[0]}">${page[0]}</a></td>
-    <td>${page[1]}</td>
-  </tr>
-</table>
-<hr />
+    <hr />
 
-<h3>Unparsable images</h3>
-<table>
-  <tr tal:repeat="img images">
-    <td><a href="/view/${tag}?image=${img}">
-    	<img src="/view/${tag}?image=${img}" alt="unparsable image ${img} of ${tag}" height="75px"/>
-    	</a>
-	</td>
-  </tr>
-</table>
+    <div tal:condition="pages">
+        <h3>Parsable regions:</h3>
+        <table>
+          <tr><th>Page/Region</th><th>Tree status</th></tr>
+          <tr tal:repeat="page pages">
+            <td><a href="/edit/${tag}?page=${page[0]}">${page[0]}</a></td>
+            <td>${page[1]}</td>
+          </tr>
+        </table>
+        <hr />
+    </div>
 
-<h2>Danger zone</h2>
-<form action="/delete/${tag}" method="POST" accept-charset="utf-8"
-      enctype="multipart/form-data">
-    <input id="really" name="really" type="checkbox" required="true" value="" />
-     <label for="name">Yes, really delete this upload</label>
-    <input type="submit" value="Delete" />
-</form>
+    <div tal:condition="images">
+        <h3>Images that eertgif cannot analyze:</h3>
+        <table>
+          <tr tal:repeat="img images">
+            <td><a href="/view/${tag}?image=${img}">
+                <img src="/view/${tag}?image=${img}" alt="unparsable image ${img} of ${tag}" height="75px"/>
+                </a>
+            </td>
+          </tr>
+        </table>
+    </div>
+    
+    <h2>Danger zone</h2>
+    <form action="/delete/${tag}" method="POST" accept-charset="utf-8"
+          enctype="multipart/form-data">
+        <input id="really" name="really" type="checkbox" required="true" value="" />
+         <label for="name">Yes, really delete this upload</label>
+        <input type="submit" value="Delete" />
+    </form>
 
-<p>When done, you can return to the <a href="/">home</a> index for the eertgif.</p>
+    <p>When done, you can return to the <a href="/">home</a> index for the eertgif.</p>
 </div>
 
 <div tal:condition="single_item">
