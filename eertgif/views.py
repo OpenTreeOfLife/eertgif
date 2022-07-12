@@ -149,7 +149,7 @@ class EertgifView:
     def __init__(self, request):
         self.request = request
         settings = self.request.registry.settings
-        self.uploads_dir = settings.get("uploads.dir", "pdfs")
+        self.uploads_dir = settings.get("uploads.dir", "scratch")
         self.debug_mode = settings.get("debug_mode", False)
 
     def _uploads(self):
