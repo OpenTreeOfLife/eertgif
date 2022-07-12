@@ -55,15 +55,14 @@ def to_svg(out, unproc_region=None):
         f"""<svg width="{width}" height="{height}" > 
 """
     )
-    log.debug(f"unproc_region.nontext_objs = {unproc_region.nontext_objs}")
+    # log.debug(f"unproc_region.nontext_objs = {unproc_region.nontext_objs}")
     for n, o in enumerate(unproc_region.nontext_objs):
         if isinstance(o, LTCurve):
             curve_as_path(out, o, xfn, yfn)
         else:
             log.debug(f"Skipping {o} in SVG export...\n")
-    log.debug(f"unproc_region.text_lines = {unproc_region.nontext_objs}")
+    # log.debug(f"unproc_region.text_lines = {unproc_region.nontext_objs}")
     for n, text in enumerate(unproc_region.text_lines):
-        log.debug(f"text {1+n}: {text} {text.__dict__}\n")
         text_as_text_el(out, text, xfn, yfn)
     out.write("</svg>")
 

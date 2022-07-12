@@ -5,6 +5,7 @@
 </head>
 <body>
 <h2>Editing study "${tag}" <span tal:condition="single_item">region ${pages[0][0]}</span></h2>
+<span tal:condition="prev_region_id"> <a class="button" href="/edit/${tag}?page=${prev_region_id}">Previous region</a></span><span tal:condition="next_region_id"> <a class="button" href="/edit/${tag}?page=${next_region_id}">Next region</a></span>
 <div tal:condition="not single_item">
     <hr />
 

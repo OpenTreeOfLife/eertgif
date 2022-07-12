@@ -163,6 +163,8 @@ class EertgifView:
             page_status = list(top_cont.page_status_list)
         pages = [(i, page_status[n]) for n, i in enumerate(pages)]
         single_item = False
+        next_region_id = None
+        prev_region_id = None
         svg = None
         if page_id is not None:
             p = None
@@ -174,6 +176,8 @@ class EertgifView:
                     break
             if p is None:
                 return HTTPNotFound(f"Region/Page {page_id} in {tag} does not exist.")
+            next_region_id = None if idx == (len(pages) - 1) else pages[idx + 1][0]
+            prev_region_id = None if idx == 0 else pages[idx - 1][0]
             pages = [p]
             images = []
             single_item = True
@@ -186,13 +190,20 @@ class EertgifView:
                 x = StringIO()
                 to_svg(x, unproc_region=object_for_region)
                 svg = x.getvalue()
-        return {
+        else:
+            if len(pages) > 1:
+                next_region_id = pages[0][0]
+
+        d = {
             "tag": tag,
             "pages": pages,
             "images": images,
             "single_item": single_item,
+            "next_region_id": next_region_id,
+            "prev_region_id": prev_region_id,
             "svg": svg,
         }
+        return d
 
     @view_config(route_name="eertgif:view")
     def view_view(self):

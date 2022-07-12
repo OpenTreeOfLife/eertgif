@@ -1116,6 +1116,10 @@ class UnprocessedRegion(object):
         self.container_bbox = tuple(container.bbox)
 
     @property
+    def has_content(self):
+        return bool(self.text_lines) or bool(self.nontext_objs)
+
+    @property
     def tag(self):
         if self.page_num is None:
             assert self.subpage_num is None
@@ -1136,17 +1140,19 @@ def get_regions_unprocessed(filepath, params=None, image_writer=None):
                     fig, params=params, image_writer=image_writer
                 )
                 image_paths.extend(imgs)
-                unproc_page.page_num = n
-                unproc_page.subpage_num = fn
-                ur.append(unproc_page)
+                if unproc_page.has_content:
+                    unproc_page.page_num = n
+                    unproc_page.subpage_num = fn
+                    ur.append(unproc_page)
         else:
             # try whole page as figure container
             unproc_page, imgs = find_text_and_curves(
                 page_layout, params=params, image_writer=image_writer
             )
             image_paths.extend(imgs)
-            unproc_page.page_num = n
-            ur.append(unproc_page)
+            if unproc_page.has_content:
+                unproc_page.page_num = n
+                ur.append(unproc_page)
     return ur, image_paths
 
 
