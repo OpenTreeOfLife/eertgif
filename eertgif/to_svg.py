@@ -1,27 +1,10 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import re
 import html
-from collections import namedtuple
-from io import StringIO
-from typing import List, Any, Dict, Set, Tuple, Union
-from pdfminer.high_level import extract_pages, LAParams
-from pdfminer.layout import (
-    LTChar,
-    LTFigure,
-    LTCurve,
-    LTTextLine,
-    LTTextLineHorizontal,
-    LTTextLineVertical,
-    LTTextBox,
-    LTTextBoxHorizontal,
-    LTTextBoxVertical,
-)
-from pdfminer.utils import fsplit, Point, Rect
-from math import sqrt
-from enum import IntEnum, Enum
 import logging
+
+from pdfminer.layout import LTCurve
 
 log = logging.getLogger("eertgif.to_svg")
 
@@ -80,7 +63,7 @@ def text_as_text_el(out, text, xfn, yfn):
 
 
 def curve_as_path(out, curve, xfn, yfn):
-    coord_pairs = [f"{int(xfn(i[0]))} {int(yfn(i[1]))}" for i in curve.pts]
+    coord_pairs = [f"{xfn(i[0])} {yfn(i[1])}" for i in curve.pts]
     pt_str = " L".join(coord_pairs)
     atts = []
     if curve.stroke:

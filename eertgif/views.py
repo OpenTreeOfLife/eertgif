@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-from pyramid.response import Response
-from pyramid.httpexceptions import HTTPConflict, HTTPBadRequest, HTTPFound, HTTPNotFound
-from typing import Optional
-from pyramid.view import view_config
-import os
-import re
-from io import StringIO
-import logging
 import json
-import tempfile
+import logging
+import os
 import pickle
-from threading import Lock
+import re
 import shutil
+import tempfile
+from io import StringIO
+from threading import Lock
+
+from pyramid.httpexceptions import HTTPConflict, HTTPBadRequest, HTTPFound, HTTPNotFound
+from pyramid.view import view_config
+
+from pdfminer.image import ImageWriter
 from .extract import get_regions_unprocessed, UnprocessedRegion
 from .study_container import StudyContainer
 from .to_svg import to_svg
-from pdfminer.image import ImageWriter
 
 log = logging.getLogger("eertgif")
 
-# _uploads is a global of lists, each contained
+# _uploads is a global list of lists, each contained
 #   list holds:
 #       [tag str, shared_list]
 #   where shared_list holds:
@@ -90,7 +90,6 @@ def force_add_upload_dir(tag, dest_dir):
 def scan_for_uploads(uploads_dir):
     global _uploads, _up_dir
     found_uploads = _find_uploads(uploads_dir)
-    u, bt = [], {}
     with _upload_lock:
         _uploads[:] = found_uploads[:]  # replace contents
         _up_dir = uploads_dir
@@ -155,8 +154,6 @@ class EertgifView:
         tag = self.request.matchdict["tag"]
         page_id = self.request.params.get("page")
         study_lock, top_cont = self._get_lock_and_top(tag)
-        pages, images = [], []
-        page_status = []
         with study_lock:
             pages = list(top_cont.page_ids)
             images = list(top_cont.image_ids)
@@ -214,7 +211,6 @@ class EertgifView:
             if page_id is None:
                 return HTTPFound(location="/edit/{tag}")
             return HTTPFound(location="/edit/{tag}?page={page_id}")
-        shared_list = self._get_shared_list_for_upload(tag)
         study_lock, top_cont = self._get_lock_and_top(tag)
         with study_lock:
             path_to_image = top_cont.path_to_image(img_id)
@@ -315,7 +311,7 @@ class EertgifView:
                     with open(pfp, "wb") as f_out:
                         pickle.dump(ur, f_out, protocol=pickle.HIGHEST_PROTOCOL)
                     pickled.append(pf)
-            except TypeError as x:
+            except TypeError:
                 log.exception(f"Pickle failure")
                 clean_files_and_dir_no_raise(to_clean, dest_dir)
                 force_remove_study_from_upload_globals(tag)
@@ -363,10 +359,10 @@ def clean_files_and_dir_no_raise(to_clean, dest_dir):
         except:
             log.exception(f'Temp file "{fp}" could not be deleted.')
             pass
-    # shortest first to delete in postorder
+    # longest first to delete in postorder
     dtr = [(len(i), i) for i in dirs_to_rm]
-    dtr.sort()
-    dtr.append((None, dest_dir))
+    dtr.sort(reverse=True)
+    dtr.append((100000000, dest_dir))
     success = True
     for d in [i[1] for i in dtr]:
         try:

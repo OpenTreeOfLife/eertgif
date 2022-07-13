@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import sys
+import logging
 import re
-from collections import namedtuple
+import sys
+from enum import IntEnum, Enum
 from io import StringIO
-from typing import List, Any, Dict, Set, Tuple, Union, Optional
+from math import sqrt
+from typing import List, Any, Dict, Set, Tuple, Union
+
 from pdfminer.high_level import extract_pages, LAParams
 from pdfminer.layout import (
     LTChar,
@@ -15,16 +18,11 @@ from pdfminer.layout import (
     LTTextLineHorizontal,
     LTTextLineVertical,
     LTTextBox,
-    LTTextBoxHorizontal,
-    LTTextBoxVertical,
     LTImage,
 )
-from pdfminer.utils import fsplit, Point, Rect
-from math import sqrt
-from enum import IntEnum, Enum
+from pdfminer.utils import Point, Rect
+from .point_map import PointMap
 from .to_svg import to_html
-
-import logging
 
 log = logging.getLogger("eertgif.extract")
 # Includes some code from pdfminer layout.py
@@ -75,86 +73,6 @@ def rotate_cw(tip_dir: Direction) -> Direction:
 
 
 CARDINAL = (Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST)
-
-
-################################################################################
-# Code for Pt and PointMap modified from code by Ned Batchelder
-#   https://nedbatchelder.com/blog/201707/finding_fuzzy_floats.html
-# "I don’t have a formal license for most of this code. I post it here in the
-# spirit of sharing. Use it for what you will. " https://nedbatchelder.com/code
-class Pt(namedtuple("Pt", "x")):
-    # no need for special __eq__ or __hash__
-    pass
-
-
-class PointMap:
-    def __init__(self):
-        self._items = {}
-        self._rounded = {}
-
-    ROUND_DIGITS = 6
-    JITTERS = [0, 0.5 * 10 ** -ROUND_DIGITS]
-
-    def _round(self, pt, jitter):
-        return Pt(round(pt.x + jitter, ndigits=self.ROUND_DIGITS))
-
-    def _get_impl(self, pt, default=None):
-        if not isinstance(pt, Pt):
-            pt = Pt(float(pt))
-        if pt in self._items:
-            return self._items[pt], True
-        for jitter in self.JITTERS:
-            pt_rnd = self._round(pt, jitter)
-            pt0 = self._rounded.get(pt_rnd)
-            if pt0 is not None:
-                return self._items[pt0], True
-        return default, False
-
-    def get(self, pt: Union[int, float, Pt], default=None):
-        return self._get_impl(pt, default=default)[0]
-
-    def setdefault(self, pt: Union[int, float, Pt], default=None):
-        val, was_found = self._get_impl(pt, default=default)
-        if not was_found:
-            self.__setitem__(pt, val)
-        return val
-
-    def __getitem__(self, pt):
-        val, was_found = self._get_impl(pt)
-        if not was_found:
-            raise KeyError(pt)
-        return val
-
-    def __setitem__(self, pt, val):
-        if not isinstance(pt, Pt):
-            pt = Pt(float(pt))
-        self._items[pt] = val
-        for jitter in self.JITTERS:
-            pt_rnd = self._round(pt, jitter)
-            old = self._rounded.get(pt_rnd)
-            store = True
-            if old is not None:
-                if old.x != pt.x:
-                    del self._items[old]  # rounded key clash, replace old key in items
-                else:
-                    store = False  # Already stored
-            if store:
-                self._rounded[pt_rnd] = pt
-
-    def __iter__(self):
-        return iter(self._items)
-
-    def items(self):
-        return self._items.items()
-
-    def keys(self):
-        return [i.x for i in self._items.keys()]
-
-    def values(self):
-        return self._items.values()
-
-
-################################################################################
 
 
 class Node(object):
@@ -408,7 +326,7 @@ class PhyloLegend(object):
         self.legend_pair = min_el
         self.bar = min_el[1]
         self.legend_text = min_el[0]
-        self.edge_len_scaler = as_numeric(min_el[0].get_text())[1] / (self.bar.length)
+        self.edge_len_scaler = as_numeric(min_el[0].get_text())[1] / self.bar.length
         self.unused_text = set([i for i in text_lines if i is not self.legend_text])
         self.unused_nodes = [i for i in connected_nodes if i is not self.bar]
         self.score = abs(DEFAULT_LABEL_GAP - min_d)
@@ -439,7 +357,7 @@ def as_numeric(label):
 def find_closest_first(tup, tup_list):
     """assumes first element in tup and each tuple of tup_list is a loc.
 
-    Returns closest element from tup_list.
+    Returns the closest element from tup_list.
     """
     loc = tup[0]
     min_dist, closest = float("inf"), None
@@ -508,7 +426,7 @@ class PhyloTree(object):
             ly = min(ly, nd.y)
             hx = max(hx, nd.x)
             hy = max(hy, nd.y)
-        nodes_bbox = (lx, ly, hx, hy)
+        # nodes_bbox = (lx, ly, hx, hy)
         lx, ly, hx, hy = float("inf"), float("inf"), float("-inf"), float("-inf")
         th, tw = [], []
         horiz_text, vert_text = [], []
@@ -525,7 +443,7 @@ class PhyloTree(object):
             else:
                 assert isinstance(ltline, LTTextLineVertical)
                 vert_text.append(ltline)
-        text_bbox = (lx, ly, hx, hy)
+        # text_bbox = (lx, ly, hx, hy)
         # print(
         #     f"nodes_bbox = {nodes_bbox} text_bbox={text_bbox} {len(horiz_text)}, {len(vert_text)}"
         # )
@@ -914,6 +832,7 @@ class PhyloMapAttempt(object):
             if phynd is not root:
                 self.add_penalty(Penalty.UNMATCHED_LABELS, 1)
         root.collapse_short_internals(MIN_BR_TOL)
+        return root
 
     def _root_by_position(
         self, tip_dir: Direction, node2phyn: Dict[Node, PhyloNode]
@@ -1039,7 +958,7 @@ def _analyze_text_and_curves(text_lines, curves):
     print(best_tree.root.get_newick(edge_len_scaler))
 
 
-_skip_types = set([LTImage])
+_skip_types = {LTImage}
 
 
 def find_text_and_curves(

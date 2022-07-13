@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-__all__ = ["extract", "study_container", "to_svg", "views"]
+__all__ = ["extract", "point_map", "study_container", "to_svg", "views"]
 
 from pyramid.config import Configurator
 import os

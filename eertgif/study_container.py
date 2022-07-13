@@ -1,18 +1,8 @@
 #!/usr/bin/env python3
-from pyramid.response import Response
-from pyramid.httpexceptions import HTTPConflict, HTTPBadRequest, HTTPFound, HTTPNotFound
-from typing import Optional
-from pyramid.view import view_config
-import os
-import re
 import logging
-import json
-import tempfile
+import os
 import pickle
-from threading import Lock
-import shutil
-from .extract import get_regions_unprocessed
-from pdfminer.image import ImageWriter
+from typing import Optional
 
 log = logging.getLogger("eertgif.study_container")
 
