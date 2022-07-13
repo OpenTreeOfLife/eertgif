@@ -4,8 +4,6 @@ from __future__ import annotations
 import html
 import logging
 
-from pdfminer.layout import LTCurve
-
 log = logging.getLogger("eertgif.to_svg")
 
 
@@ -27,6 +25,8 @@ def to_html(out, unproc_region=None):
 
 
 def to_svg(out, unproc_region=None):
+    from .extract import SafeCurve
+
     assert unproc_region is not None
     cbb = unproc_region.container_bbox
     height = cbb[3] - cbb[1]
@@ -40,7 +40,7 @@ def to_svg(out, unproc_region=None):
     )
     # log.debug(f"unproc_region.nontext_objs = {unproc_region.nontext_objs}")
     for n, o in enumerate(unproc_region.nontext_objs):
-        if isinstance(o, LTCurve):
+        if isinstance(o, SafeCurve):
             curve_as_path(out, o, xfn, yfn)
         else:
             log.debug(f"Skipping {o} in SVG export...\n")
@@ -57,9 +57,48 @@ def text_as_text_el(out, text, xfn, yfn):
     atts.append(f'textLength="{length}"')
     atts.append(f'textAdjust="spacingAndGlyphs"')
     atts.append(f'font-size="{int(text.height)}px"')
-    proc = html.escape(text.get_text().strip())
-    s = f' <text {" ".join(atts)} >{proc}</text>\n'
-    out.write(s)
+    if text.is_all_one_font:
+        _append_atts_for_font(text.font, atts)
+        proc = html.escape(text.get_text().strip())
+        s = f' <text {" ".join(atts)} >{proc}</text>\n'
+        out.write(s)
+        return
+    prev_font = None
+    out.write(f' <text {" ".join(atts)} >')
+    curr_font_chars = []
+    for idx, char in enumerate(text.get_text().strip()):
+        f = text.font_for_index(idx)
+        if f is None:
+            log.debug(f"No font found for index {idx} of {text.get_text()}")
+            curr_font_chars.append(char)
+            continue
+        if prev_font is None or f == prev_font:
+            pass
+        elif curr_font_chars:
+            _write_tspan(out, prev_font, curr_font_chars)
+            curr_font_chars = []
+        curr_font_chars.append(char)
+        prev_font = f
+    if curr_font_chars:
+        _write_tspan(out, prev_font, curr_font_chars)
+    out.write("</text>")
+
+
+def _write_tspan(out, font, char_list):
+    atts = _append_atts_for_font(font, [])
+    proc = html.escape("".join(char_list))
+    out.write(f'<tspan {" ".join(atts)} >{proc}</tspan>\n')
+
+
+def _append_atts_for_font(font, att_list):
+    att_list.append(f'font-family="{font.font_family}"')
+    n = font.font_weight
+    if n != "normal":
+        att_list.append(f'font-weight="{n}"')
+    n = font.font_style
+    if n != "normal":
+        att_list.append(f'font-style="{n}"')
+    return att_list
 
 
 def curve_as_path(out, curve, xfn, yfn):

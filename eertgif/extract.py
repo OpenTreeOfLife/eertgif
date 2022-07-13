@@ -19,6 +19,7 @@ from pdfminer.layout import (
     LTTextLineVertical,
     LTTextBox,
     LTImage,
+    LTAnno,
 )
 from pdfminer.utils import Point, Rect
 from .point_map import PointMap
@@ -969,7 +970,7 @@ _skip_types = {LTImage}
 
 
 def find_text_and_curves(
-    fig, params=None, image_writer=None
+    fig, params=None, image_writer=None, pdf_interpret=None
 ) -> Tuple[UnprocessedRegion, List[str]]:
     if params is None:
         params = LAParams()
@@ -1002,7 +1003,10 @@ def find_text_and_curves(
                 log.debug(f"Skipping element of type {type(el)}")
     if char_objs:
         text_lines.extend(list(fig.group_objects(params, char_objs)))
-    return UnprocessedRegion(text_lines, otherobjs, fig), image_paths
+    return (
+        UnprocessedRegion(text_lines, otherobjs, fig, pdf_interpret=pdf_interpret),
+        image_paths,
+    )
 
 
 def filter_text_and_curves(text_lines, otherobjs):
@@ -1071,10 +1075,37 @@ class SafeCurve(object):
         return (self.x0, self.y0, self.x1, self.y1)
 
 
+class SafeFont(object):
+    def __init__(self, font_desc):
+        assert isinstance(font_desc, str)
+        self.font_desc = font_desc
+        self._lc_font_desc = font_desc.lower()
+        if "+" in self.font_desc:
+            self._after_plus = "+".join(self.font_desc.split("+")[1:])
+        else:
+            self._after_plus = self.font_desc
+        self._bef_dash = self._after_plus.split("-")[0]
+        self.font_style = "normal"
+        if "italic" in self._lc_font_desc:
+            self.font_style = "italic"
+        elif "oblique" in self._lc_font_desc:
+            self.font_style = "oblique"
+        self.font_weight = "normal"
+        if "bold" in self._lc_font_desc:
+            self.font_weight = "bold"
+
+    @property
+    def font_family(self):
+        return self._bef_dash
+
+
+_cid_num_pat = re.compile(r"^[(]cid:(\d+)[)]$")
+
+
 class SafeTextLine(object):
     """Slimmed down version of LTLine designed to be safe for pickling."""
 
-    def __init__(self, lt_line, eertgif_id):
+    def __init__(self, lt_line, eertgif_id, font_dict, pdf_interpret=None):
         self.eertgif_id = eertgif_id
         self.x0 = safe_number(lt_line.x0)
         self.y0 = safe_number(lt_line.y0)
@@ -1083,16 +1114,89 @@ class SafeTextLine(object):
         assert abs(self.height - lt_line.height) < DIM_TOL
         assert abs(self.width - lt_line.width) < DIM_TOL
         self.word_margin = lt_line.word_margin
-        self.text = str(lt_line.get_text())
         if isinstance(lt_line, LTTextLineHorizontal):
             self.direction = AxisDir.HORIZONTAL
         elif isinstance(lt_line, LTTextLineVertical):
             self.direction = AxisDir.VERTICAL
         else:
             self.direction = AxisDir.UNKNOWN
-        self.all_fonts = []
+        all_fonts = set()
+        font_for_char = []
+        prev_font = None
+        el_count = 0
+        char_list = []
         for el in lt_line:
-            assert isinstance(el, LTChar) or isinstance(el, LTAnno)
+            if isinstance(el, LTChar):
+                f = el.fontname
+                safe_font = font_dict.get(f)
+                prev_font = safe_font
+                if safe_font is None:
+                    safe_font = SafeFont(f)
+                    font_dict[f] = safe_font
+                all_fonts.add(safe_font)
+                font_for_char.append(safe_font)
+                ch_text = el.get_text()
+                if len(ch_text) != 1:
+                    m = _cid_num_pat.match(ch_text)
+                    matched_font = None
+                    for v in pdf_interpret.fontmap.values():
+                        if v.fontname == f:
+                            matched_font = v
+                            break
+                    if m:
+                        cidn = int(m.group(1))
+                        matched_uni = (
+                            None if matched_font else matched_font.cid2unicode.get(cidn)
+                        )
+                        log.debug(f"pdf_interpretfontmap.items = {str()}")
+                    else:
+                        log.debug(f"multi-character LTChar text '{anno_text}'")
+                        assert len(ch_text) == 1
+
+                char_list.append(ch_text)
+            else:
+                assert isinstance(el, LTAnno)
+                anno_text = el.get_text()
+                if prev_font is not None:
+                    font_for_char.append(prev_font)
+                else:
+                    assert False, "not expecting a string to start with LTAnno..."
+                if len(anno_text) != 1:
+                    log.debug(f"multi-character LTAnno text '{anno_text}'")
+                    assert len(anno_text) == 1
+                char_list.append(anno_text)
+            el_count += 1
+        self.text = "".join(char_list)
+
+        if len(font_for_char) != len(self.text):
+            tfel = []
+            for el in lt_line:
+                if isinstance(el, LTChar):
+                    tfel.append(f" {el._text} ")
+                else:
+                    tfel.append(f"({el._text})")
+            st = list(self.text)
+            spaced = f" {'  '.join(st)} "
+            log.debug(f"font, char mismatch\n  '{spaced}'\n  '{''.join(tfel)}'")
+
+        if len(all_fonts) == 1:
+            self.font = font_for_char[0]
+        else:
+            self.font = font_for_char
+            if font_for_char and font_for_char[0] is None:
+                fnnf = None
+                for f in font_for_char:
+                    if f is not None:
+                        fnnf = f
+                        break
+                assert fnff is not None
+                idx = 0
+                while True:
+                    if font_for_char[idx] is None:
+                        font_for_char[idx] = fnnf
+                        idx += 1
+                    else:
+                        break
 
     def get_text(self):
         return self.text
@@ -1109,11 +1213,27 @@ class SafeTextLine(object):
     def bbox(self):
         return (self.x0, self.y0, self.x1, self.y1)
 
+    @property
+    def is_all_one_font(self):
+        return isinstance(self.font, SafeFont)
 
-def convert_to_safe_line(text_lines, eertgif_id):
+    def font_for_index(self, idx):
+        if self.is_all_one_font:
+            return self.font
+        return self.font[idx]
+
+
+def convert_to_safe_line(text_lines, eertgif_id, font_dict, pdf_interpret=None):
     sl = []
     for line in text_lines:
-        sl.append(SafeTextLine(line, eertgif_id=eertgif_id))
+        sl.append(
+            SafeTextLine(
+                line,
+                eertgif_id=eertgif_id,
+                font_dict=font_dict,
+                pdf_interpret=pdf_interpret,
+            )
+        )
         eertgif_id += 1
     return sl, eertgif_id
 
@@ -1127,17 +1247,21 @@ def convert_to_safe_curves(curves, eertgif_id):
 
 
 class UnprocessedRegion(object):
-    def __init__(self, text_lines, nontext_objs, container):
+    def __init__(self, text_lines, nontext_objs, container, pdf_interpret=None):
         self.page_num = None
         self.subpage_num = None
         eertgif_id = 0
-        self.text_lines, eertgif_id = convert_to_safe_line(text_lines, eertgif_id)
+        self.font_dict = {}
+        self.text_lines, eertgif_id = convert_to_safe_line(
+            text_lines, eertgif_id, self.font_dict, pdf_interpret=pdf_interpret
+        )
         self.nontext_objs, eertgif_id = convert_to_safe_curves(nontext_objs, eertgif_id)
         self.container_bbox = tuple(container.bbox)
         assert isinstance(self.container_bbox, tuple)
         assert len(self.container_bbox) == 4
         for el in self.container_bbox:
             assert isinstance(el, float) or isinstance(el, int)
+        log.debug(f"UnprocessedRegion fonts descriptors={list(self.font_dict.keys())}")
 
     @property
     def has_content(self):
@@ -1153,15 +1277,52 @@ class UnprocessedRegion(object):
         return str(self.page_num)
 
 
+def my_extract_pages(pdf_file, page_numbers=None):
+    """Extract and yield (LTPage, interpreter, device, resource_mgr) tuples
+
+    Tweak of pdfminer.six version to the PDFResourceManagerToo
+    """
+    laparams = LAParams()
+    maxpages = 0
+    password = ""
+    caching = True
+    from pdfminer.high_level import (
+        open_filename,
+        cast,
+        BinaryIO,
+        PDFResourceManager,
+        PDFPageAggregator,
+        PDFPageInterpreter,
+        PDFPage,
+    )
+
+    with open_filename(pdf_file, "rb") as fp:
+        fp = cast(BinaryIO, fp)  # we opened in binary mode
+        resource_manager = PDFResourceManager(caching=caching)
+        device = PDFPageAggregator(resource_manager, laparams=laparams)
+        interpreter = PDFPageInterpreter(resource_manager, device)
+        for page in PDFPage.get_pages(
+            fp, page_numbers, maxpages=maxpages, password=password, caching=caching
+        ):
+            interpreter.process_page(page)
+            layout = device.get_result()
+            yield layout, interpreter, device, resource_manager
+
+
 def get_regions_unprocessed(filepath, params=None, image_writer=None):
     ur = []
     image_paths = []
-    for n, page_layout in enumerate(extract_pages(filepath)):
+    for n, pag_tup in enumerate(my_extract_pages(filepath)):
+        page_layout = pag_tup[0]
+        pdf_interpret = pag_tup[1]
         figures = [el for el in page_layout if isinstance(el, LTFigure)]
         if figures:
             for fn, fig in enumerate(figures):
                 unproc_page, imgs = find_text_and_curves(
-                    fig, params=params, image_writer=image_writer
+                    fig,
+                    params=params,
+                    image_writer=image_writer,
+                    pdf_interpret=pdf_interpret,
                 )
                 image_paths.extend(imgs)
                 if unproc_page.has_content:
@@ -1171,7 +1332,10 @@ def get_regions_unprocessed(filepath, params=None, image_writer=None):
         else:
             # try whole page as figure container
             unproc_page, imgs = find_text_and_curves(
-                page_layout, params=params, image_writer=image_writer
+                page_layout,
+                params=params,
+                image_writer=image_writer,
+                pdf_interpret=pdf_interpret,
             )
             image_paths.extend(imgs)
             if unproc_page.has_content:
@@ -1182,7 +1346,8 @@ def get_regions_unprocessed(filepath, params=None, image_writer=None):
 
 def main(fp):
     # params = LAParams()
-    for page_layout in extract_pages(fp):
+    for page_tup in my_extract_pages(fp):
+        page_layout = page_tup[0]
         figures = [el for el in page_layout if isinstance(el, LTFigure)]
         if figures:
             for fig in figures:

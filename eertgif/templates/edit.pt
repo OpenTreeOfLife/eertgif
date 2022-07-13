@@ -43,7 +43,9 @@
         <input type="submit" value="Delete" />
     </form>
 
-    <p>When done, you can return to the <a href="/">home</a> index for the eertgif.</p>
+    <hr />
+
+
 </div>
 
 <div tal:condition="single_item">
@@ -57,7 +59,10 @@
     </div>
 
     <p>Back to full study view at <a href="/edit/${tag}">edit/${tag}</a>.</p>
+    <hr />
 </div>
+
+<p>When done with this study, you can return to the <a href="/">home</a> index for the eertgif.</p>
 
 </body>
 </html>

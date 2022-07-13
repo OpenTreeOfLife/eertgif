@@ -26,6 +26,7 @@ def main(global_config, **settings):
     config.add_route("eertgif:about", "/about")
     config.add_route("eertgif:upload", "/upload")
     config.add_route("eertgif:edit", "/edit/{tag}")
+    config.add_route("eertgif:extract", "/extract/{tag}")
     config.add_route("eertgif:view", "/view/{tag}")
     config.add_route("eertgif:delete", "/delete/{tag}")
     config.add_route("eertgif:set_status", "/set_status/{tag}")
