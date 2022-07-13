@@ -74,12 +74,12 @@ def curve_as_path(out, curve, xfn, yfn):
         atts.append(f'stroke="none"')
     filling = curve.non_stroking_color and curve.non_stroking_color != (0, 0, 0)
     if filling:
-        atts.append(f'fill="black"')
+        atts.append(f'fill="grey"')
         atts.append(
             "onmouseover=\"evt.target.setAttribute('stroke', 'red');evt.target.setAttribute('fill', 'red');\""
         )
         atts.append(
-            "onmouseout=\"evt.target.setAttribute('stroke', 'black');evt.target.setAttribute('fill', 'black');\""
+            "onmouseout=\"evt.target.setAttribute('stroke', 'black');evt.target.setAttribute('fill', 'grey');\""
         )
         s = f' <path d="M{pt_str} Z" {" ".join(atts)} />\n'
     else:

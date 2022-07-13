@@ -7,6 +7,20 @@ from typing import Optional
 log = logging.getLogger("eertgif.study_container")
 
 
+class RegionStatus:
+    UNKNOWN = "unknown"
+    NO_TREES = "no trees"
+    all_values = (UNKNOWN, NO_TREES)
+
+    @staticmethod
+    def validate(s):
+        sl = s.lower()
+        for v in RegionStatus.all_values:
+            if v == sl:
+                return v
+        return None
+
+
 class StudyContainer(object):
     """Caller of methods must obtain lock, first."""
 
@@ -15,7 +29,10 @@ class StudyContainer(object):
         self.par_dir = par_dir
         self._page_ids = None
         self._image_ids = None
-        self._page_status_list = None
+        self._page_status_list = []
+        self._page_status_list = self.blob.setdefault(
+            "page_status_list", self.page_status_list
+        )
         self._obj_for_regions = None
 
     @property
@@ -33,7 +50,9 @@ class StudyContainer(object):
             self._page_ids = [i[:-lensuf] for i in self.pickles_names]
             # TODO page status diagnosis?
             npi = len(self._page_ids)
-            self._page_status_list = ["unknown"] * npi
+            if not self._page_status_list:
+                x = [RegionStatus.UNKNOWN] * npi
+                self._page_status_list[:] = x
             self._obj_for_regions = [None] * npi
         return self._page_ids
 
@@ -84,3 +103,9 @@ class StudyContainer(object):
             if i.endswith(suffix):
                 return i
         return None
+
+    def index_for_page_id(self, page_id):
+        try:
+            return self.page_ids.index(page_id)
+        except:
+            return None

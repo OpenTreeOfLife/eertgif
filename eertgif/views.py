@@ -14,7 +14,7 @@ from pyramid.view import view_config
 
 from pdfminer.image import ImageWriter
 from .extract import get_regions_unprocessed, UnprocessedRegion
-from .study_container import StudyContainer
+from .study_container import StudyContainer, RegionStatus
 from .to_svg import to_svg
 
 log = logging.getLogger("eertgif")
@@ -149,6 +149,26 @@ class EertgifView:
     def about_view(self):
         return {"name": "About View"}
 
+    @view_config(route_name="eertgif:set_status")
+    def set_status(self):
+        tag = self.request.matchdict["tag"]
+        page_id = self.request.params.get("page")
+        if page_id is None:
+            return HTTPBadRequest('"page" query parameter required.')
+        status = self.request.params.get("status")
+        if status is None:
+            return HTTPBadRequest('"status" query parameter required.')
+        validated_stat = RegionStatus.validate(status)
+        if validated_stat is None:
+            return HTTPBadRequest(f'"{status}" is not a valid value for status')
+        study_lock, top_cont = self._get_lock_and_top(tag)
+        with study_lock:
+            idx = top_cont.index_for_page_id(page_id)
+            if idx is None:
+                return HTTPNotFound(f"Region/Page {page_id} in {tag} does not exist.")
+            top_cont.page_status_list[idx] = validated_stat
+        return HTTPFound(f"/edit/{tag}?page={page_id}")
+
     @view_config(route_name="eertgif:edit", renderer="templates/edit.pt")
     def edit_view(self):
         tag = self.request.matchdict["tag"]
@@ -163,6 +183,7 @@ class EertgifView:
         next_region_id = None
         prev_region_id = None
         svg = None
+        status = RegionStatus.UNKNOWN
         if page_id is not None:
             p = None
             idx = None
@@ -177,16 +198,18 @@ class EertgifView:
             prev_region_id = None if idx == 0 else pages[idx - 1][0]
             pages = [p]
             images = []
+            status = page_status[idx]
             single_item = True
-            try:
-                with study_lock:
-                    object_for_region = top_cont.object_for_region(idx)
-            except RuntimeError as x:
-                return HTTPConflict(str(x.args[0]))
-            if isinstance(object_for_region, UnprocessedRegion):
-                x = StringIO()
-                to_svg(x, unproc_region=object_for_region)
-                svg = x.getvalue()
+            if status != RegionStatus.NO_TREES:
+                try:
+                    with study_lock:
+                        object_for_region = top_cont.object_for_region(idx)
+                except RuntimeError as x:
+                    return HTTPConflict(str(x.args[0]))
+                if isinstance(object_for_region, UnprocessedRegion):
+                    x = StringIO()
+                    to_svg(x, unproc_region=object_for_region)
+                    svg = x.getvalue()
         else:
             if len(pages) > 1:
                 next_region_id = pages[0][0]
@@ -199,6 +222,7 @@ class EertgifView:
             "next_region_id": next_region_id,
             "prev_region_id": prev_region_id,
             "svg": svg,
+            "status": status,
         }
         return d
 
