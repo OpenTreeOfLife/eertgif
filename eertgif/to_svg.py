@@ -66,17 +66,26 @@ def curve_as_path(out, curve, xfn, yfn):
     coord_pairs = [f"{xfn(i[0])} {yfn(i[1])}" for i in curve.pts]
     pt_str = " L".join(coord_pairs)
     atts = []
+
     if curve.stroke:
         atts.append(f'stroke-width="{curve.linewidth}"')
         atts.append(f'stroke="black"')  # @TODO!
-    if curve.non_stroking_color:
-        # c = curve.non_stroking_color
-        # if len(c) == 3:
-        #     atts.append(f'fill="rgb({int(100*c[0])}%, {int(100*c[1])}%, {int(100*c[2])}%)"')
-        # else:
+    else:
+        atts.append(f'stroke="none"')
+    filling = curve.non_stroking_color and curve.non_stroking_color != (0, 0, 0)
+    if filling:
         atts.append(f'fill="black"')
-        atts.append("onmouseover=\"evt.target.setAttribute('fill', 'red');\"")
-        atts.append("onmouseout=\"evt.target.setAttribute('fill', 'black');\"")
+        atts.append(
+            "onmouseover=\"evt.target.setAttribute('stroke', 'red');evt.target.setAttribute('fill', 'red');\""
+        )
+        atts.append(
+            "onmouseout=\"evt.target.setAttribute('stroke', 'black');evt.target.setAttribute('fill', 'black');\""
+        )
+        s = f' <path d="M{pt_str} Z" {" ".join(atts)} />\n'
+    else:
+        atts.append('fill="none"')
+        atts.append("onmouseover=\"evt.target.setAttribute('stroke', 'red');\"")
+        atts.append("onmouseout=\"evt.target.setAttribute('stroke', 'black');\"")
+        s = f' <path d="M{pt_str}" {" ".join(atts)} />\n'
 
-    s = f' <path d="M{pt_str} Z" {" ".join(atts)} />\n'
     out.write(s)
