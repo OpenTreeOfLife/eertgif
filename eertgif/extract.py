@@ -29,6 +29,7 @@ log = logging.getLogger("eertgif.extract")
 
 VERBOSE = True
 COORD_TOL = 1.0e-3
+DIM_TOL = COORD_TOL
 MIN_BR_TOL = 1.0e-4
 DEFAULT_LABEL_GAP = 10
 
@@ -55,6 +56,12 @@ class Direction(IntEnum):
     SOUTHWEST = 0x0A
     WEST = 0x08
     NORTHWEST = 0x09
+
+
+class AxisDir(IntEnum):
+    UNKNOWN = 0
+    HORIZONTAL = 1
+    VERTICAL = 2
 
 
 def rotate_cw(tip_dir: Direction) -> Direction:
@@ -139,7 +146,7 @@ class Node(object):
 
 
 class Edge(object):
-    def __init__(self, curve: LTCurve, nd1: Node, nd2: Node):
+    def __init__(self, curve: SafeCurve, nd1: Node, nd2: Node):
         self.curve, self.nd1, self.nd2 = curve, nd1, nd2
         nd1.add_edge(self)
         nd2.add_edge(self)
@@ -263,7 +270,7 @@ class GraphFromEdges(object):
         self.edges = set()
         self.tol = 0.01
 
-    def add_curve(self, curve: LTCurve) -> Edge:
+    def add_curve(self, curve: SafeCurve) -> Edge:
         pt1, pt2 = curve.pts[0], curve.pts[-1]
         nd1 = self.find_or_insert_node(pt1)[0]
         nd2 = self.find_or_insert_node(pt2)[0]
@@ -304,7 +311,7 @@ class PhyloLegend(object):
         self,
         connected_nodes: Set[Node] = None,
         forest: Forest = None,
-        text_lines: List[LTTextLine] = None,
+        text_lines: List[SafeTextLine] = None,
     ):
         self.forest = forest
         self.score = None
@@ -378,7 +385,7 @@ class Forest(object):
         self.legends = []
 
     def interpret_as_legend(
-        self, idx: int, text_lines: List[LTTextLine]
+        self, idx: int, text_lines: List[SafeTextLine]
     ) -> PhyloLegend:
         comp = self.components[idx]
         while len(self.legends) <= idx:
@@ -393,7 +400,7 @@ class Forest(object):
             pass
         return t
 
-    def interpret_as_tree(self, idx: int, text_lines: List[LTTextLine]) -> PhyloTree:
+    def interpret_as_tree(self, idx: int, text_lines: List[SafeTextLine]) -> PhyloTree:
         comp = self.components[idx]
         while len(self.trees) <= idx:
             self.trees.append(None)
@@ -410,7 +417,7 @@ class PhyloTree(object):
         self,
         connected_nodes: Set[Node] = None,
         forest: Forest = None,
-        text_lines: List[LTTextLine] = None,
+        text_lines: List[SafeTextLine] = None,
     ):
         self.forest = forest
         self.used_text = set()
@@ -438,10 +445,10 @@ class PhyloTree(object):
             ly = min(ly, lbb[1])
             hx = max(hx, lbb[2])
             hy = max(hy, lbb[3])
-            if isinstance(ltline, LTTextLineHorizontal):
+            if ltline.direction == AxisDir.HORIZONTAL:
                 horiz_text.append(ltline)
             else:
-                assert isinstance(ltline, LTTextLineVertical)
+                assert ltline.direction == AxisDir.VERTICAL
                 vert_text.append(ltline)
         # text_bbox = (lx, ly, hx, hy)
         # print(
@@ -518,8 +525,8 @@ class PhyloTree(object):
         tip_dir: Direction,
         internals: List[Node],
         externals: List[Node],
-        horiz_text: List[LTTextLine],
-        vert_text: List[LTTextLine],
+        horiz_text: List[SafeTextLine],
+        vert_text: List[SafeTextLine],
     ) -> PhyloMapAttempt:
         if tip_dir in (Direction.EAST, Direction.WEST):
             inline_t = horiz_text
@@ -622,7 +629,7 @@ class PhyloNode(object):
     def __init__(
         self,
         vnode: Node = None,
-        label_obj: LTTextLine = None,
+        label_obj: SafeTextLine = None,
         phy_ctx: PhyloTreeData = None,
     ):
         if vnode:
@@ -816,8 +823,8 @@ class PhyloMapAttempt(object):
         internals: List[Node],
         matched_lvs: Set[Node],
         unmatched_lvs: Set[Node],
-        tip_labels: List[LTTextLine],
-        label2leaf: Dict[LTTextLine, Tuple[Node, float]],
+        tip_labels: List[SafeTextLine],
+        label2leaf: Dict[SafeTextLine, Tuple[Node, float]],
     ) -> PhyloNode:
         node2phyn = self._build_adj(
             tip_dir=tip_dir,
@@ -856,8 +863,8 @@ class PhyloMapAttempt(object):
         tip_dir: Direction,
         internals: List[Node],
         unmatched_lvs: Set[Node],
-        tip_labels: List[LTTextLine],
-        label2leaf: Dict[LTTextLine, Tuple[Node, float]],
+        tip_labels: List[SafeTextLine],
+        label2leaf: Dict[SafeTextLine, Tuple[Node, float]],
     ) -> Dict[Node, PhyloNode]:
         node2phyn = {}
         leaves = set()
@@ -891,7 +898,7 @@ class PhyloMapAttempt(object):
         return node2phyn
 
 
-def avg_char_width(text_list: List[LTTextLine]) -> float:
+def avg_char_width(text_list: List[SafeTextLine]) -> float:
     assert text_list
     sum_len, num_chars = 0.0, 0
     for label in text_list:
@@ -1001,7 +1008,6 @@ def find_text_and_curves(
 def filter_text_and_curves(text_lines, otherobjs):
     ftl, fc = [], []
     for line in text_lines:
-        # print(line.get_text(), f"@({line.x0}, {line.y0}) - ({line.x1}, {line.y1}) w={line.width} h={line.height}")
         ftl.append(line)
     for obj in otherobjs:
         if isinstance(obj, LTCurve):
@@ -1020,19 +1026,118 @@ def filter_text_and_curves(text_lines, otherobjs):
 
 def analyze_figure(fig, params=None):
     unproc_page = find_text_and_curves(fig, params=params)[0]
+    return  # TEMP!
     with open("cruft/debug.html", "w") as svg_out:
         to_html(svg_out, unproc_region=unproc_page)
     ftl, fc = filter_text_and_curves(unproc_page.text_lines, unproc_page.nontext_objs)
     return _analyze_text_and_curves(ftl, fc)
 
 
+def safe_number(x):
+    if isinstance(x, int):
+        return int(x)
+    if isinstance(x, float):
+        return float(x)
+    raise TypeError(f"Expected number got {type(x)} for {x}")
+
+
+class SafeCurve(object):
+    def __init__(self, lt_curve, eertgif_id):
+        self.eertgif_id = eertgif_id
+        self.x0 = safe_number(lt_curve.x0)
+        self.y0 = safe_number(lt_curve.y0)
+        self.x1 = safe_number(lt_curve.x1)
+        self.y1 = safe_number(lt_curve.y1)
+        self.width = safe_number(lt_curve.width)
+        self.height = safe_number(lt_curve.height)
+        self.linewidth = safe_number(lt_curve.linewidth)
+        self.stroke = bool(lt_curve.stroke)
+        self.fill = bool(lt_curve.fill)
+        self.evenodd = bool(lt_curve.evenodd)
+        if lt_curve.stroking_color is None:
+            self.stroking_color = None
+        else:
+            self.stroking_color = [safe_number(i) for i in lt_curve.stroking_color]
+        if lt_curve.non_stroking_color is None:
+            self.non_stroking_color = None
+        else:
+            self.non_stroking_color = [
+                safe_number(i) for i in lt_curve.non_stroking_color
+            ]
+        self.pts = [(safe_number(x), safe_number(y)) for x, y in lt_curve.pts]
+
+    @property
+    def bbox(self):
+        return (self.x0, self.y0, self.x1, self.y1)
+
+
+class SafeTextLine(object):
+    """Slimmed down version of LTLine designed to be safe for pickling."""
+
+    def __init__(self, lt_line, eertgif_id):
+        self.eertgif_id = eertgif_id
+        self.x0 = safe_number(lt_line.x0)
+        self.y0 = safe_number(lt_line.y0)
+        self.x1 = safe_number(lt_line.x1)
+        self.y1 = safe_number(lt_line.y1)
+        assert abs(self.height - lt_line.height) < DIM_TOL
+        assert abs(self.width - lt_line.width) < DIM_TOL
+        self.word_margin = lt_line.word_margin
+        self.text = str(lt_line.get_text())
+        if isinstance(lt_line, LTTextLineHorizontal):
+            self.direction = AxisDir.HORIZONTAL
+        elif isinstance(lt_line, LTTextLineVertical):
+            self.direction = AxisDir.VERTICAL
+        else:
+            self.direction = AxisDir.UNKNOWN
+        self.all_fonts = []
+        for el in lt_line:
+            assert isinstance(el, LTChar) or isinstance(el, LTAnno)
+
+    def get_text(self):
+        return self.text
+
+    @property
+    def height(self):
+        return self.y1 - self.y0
+
+    @property
+    def width(self):
+        return self.x1 - self.x0
+
+    @property
+    def bbox(self):
+        return (self.x0, self.y0, self.x1, self.y1)
+
+
+def convert_to_safe_line(text_lines, eertgif_id):
+    sl = []
+    for line in text_lines:
+        sl.append(SafeTextLine(line, eertgif_id=eertgif_id))
+        eertgif_id += 1
+    return sl, eertgif_id
+
+
+def convert_to_safe_curves(curves, eertgif_id):
+    sl = []
+    for curve in curves:
+        sl.append(SafeCurve(curve, eertgif_id=eertgif_id))
+        eertgif_id += 1
+    return sl, eertgif_id
+
+
 class UnprocessedRegion(object):
     def __init__(self, text_lines, nontext_objs, container):
         self.page_num = None
         self.subpage_num = None
-        self.text_lines = text_lines
-        self.nontext_objs = nontext_objs
+        eertgif_id = 0
+        self.text_lines, eertgif_id = convert_to_safe_line(text_lines, eertgif_id)
+        self.nontext_objs, eertgif_id = convert_to_safe_curves(nontext_objs, eertgif_id)
         self.container_bbox = tuple(container.bbox)
+        assert isinstance(self.container_bbox, tuple)
+        assert len(self.container_bbox) == 4
+        for el in self.container_bbox:
+            assert isinstance(el, float) or isinstance(el, int)
 
     @property
     def has_content(self):

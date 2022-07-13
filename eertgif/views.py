@@ -149,12 +149,16 @@ class EertgifView:
     def about_view(self):
         return {"name": "About View"}
 
-    @view_config(route_name="eertgif:set_status")
-    def set_status(self):
+    def _get_tag_and_mandatory_page_id(self):
         tag = self.request.matchdict["tag"]
         page_id = self.request.params.get("page")
         if page_id is None:
             return HTTPBadRequest('"page" query parameter required.')
+        return tag, page_id
+
+    @view_config(route_name="eertgif:set_status")
+    def set_status_view(self):
+        tag, page_id = self._get_tag_and_mandatory_page_id()
         status = self.request.params.get("status")
         if status is None:
             return HTTPBadRequest('"status" query parameter required.')
@@ -167,6 +171,33 @@ class EertgifView:
             if idx is None:
                 return HTTPNotFound(f"Region/Page {page_id} in {tag} does not exist.")
             top_cont.page_status_list[idx] = validated_stat
+        return HTTPFound(f"/edit/{tag}?page={page_id}")
+
+    @view_config(route_name="eertgif:extract")
+    def extract_view(self):
+        tag, page_id = self._get_tag_and_mandatory_page_id()
+        study_lock, top_cont = self._get_lock_and_top(tag)
+        with study_lock:
+            pages = list(top_cont.page_ids)
+            idx = top_cont.index_for_page_id(page_id)
+            page_status = list(top_cont.page_status_list)
+        if idx is None:
+            return HTTPNotFound(f"Region/Page {page_id} in {tag} does not exist.")
+        page = pages[idx]
+        if page_status[idx] == RegionStatus.UNKNOWN:
+            return HTTPBadRequest(
+                "Cannot call extract on a page/region that is marked as having no trees."
+            )
+        try:
+            with study_lock:
+                object_for_region = top_cont.object_for_region(idx)
+        except RuntimeError as x:
+            log.exception("exception -> HTTPConflict")
+            return HTTPConflict(
+                "Unknown error, please report this and the eertgif.log to developers"
+            )
+        if isinstance(object_for_region, UnprocessedRegion):
+            pass
         return HTTPFound(f"/edit/{tag}?page={page_id}")
 
     @view_config(route_name="eertgif:edit", renderer="templates/edit.pt")
@@ -205,7 +236,10 @@ class EertgifView:
                     with study_lock:
                         object_for_region = top_cont.object_for_region(idx)
                 except RuntimeError as x:
-                    return HTTPConflict(str(x.args[0]))
+                    log.exception("exception -> HTTPConflict")
+                    return HTTPConflict(
+                        "Unknown error, please report this and the eertgif.log to developers"
+                    )
                 if isinstance(object_for_region, UnprocessedRegion):
                     x = StringIO()
                     to_svg(x, unproc_region=object_for_region)
