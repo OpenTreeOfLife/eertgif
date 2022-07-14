@@ -2,11 +2,29 @@ from __future__ import annotations
 
 import logging
 import re
-
+from enum import IntEnum
+from typing import Tuple, Optional
+from pdfminer.utils import Point
 from pdfminer.layout import LTChar, LTTextLineHorizontal, LTTextLineVertical, LTAnno
-from .util import AxisDir, DIM_TOL
+from .util import AxisDir, DIM_TOL, bbox_to_corners, calc_dist
 
 log = logging.getLogger(__name__)
+
+
+class CurveShape(IntEnum):
+    LINE = 0
+    CORNER_LL = 1  # └
+    CORNER_UL = 2  # ┌
+    CORNER_UR = 3  # ┐
+    CORNER_LR = 4  #  ┘
+    LINE_LIKE = 5
+    COMPLICATED = 6
+    DOT = 7
+
+
+# pretty arbitrary guess, here. distance to count as "near" a corner
+#   in curve shape diagnosis. Might need to depend on some scale of page or page element
+CORNER_TOL = 2
 
 
 def safe_number(x):
@@ -15,6 +33,15 @@ def safe_number(x):
     if isinstance(x, float):
         return float(x)
     raise TypeError(f"Expected number got {type(x)} for {x}")
+
+
+# See doc of bbox_to_corners
+_corners_order = (
+    CurveShape.CORNER_LL,
+    CurveShape.CORNER_UL,
+    CurveShape.CORNER_UR,
+    CurveShape.CORNER_LR,
+)
 
 
 class SafeCurve(object):
@@ -41,10 +68,87 @@ class SafeCurve(object):
                 safe_number(i) for i in lt_curve.non_stroking_color
             ]
         self.pts = [(safe_number(x), safe_number(y)) for x, y in lt_curve.pts]
+        # Note eff_diagonal (the effective) may contain bounding box points, any member of pts
+        self.shape, self.eff_diagonal = self._diagnose_shape()
 
     @property
     def bbox(self):
         return self.x0, self.y0, self.x1, self.y1
+
+    def _diagnose_shape(
+        self, in_corner_tol: float = CORNER_TOL
+    ) -> Tuple[CurveShape, Optional[Tuple[Point, Point]]]:
+        """called to fill in the "shape" attribute from bbox and points.
+
+        """
+        assert self.pts
+        pts = self.pts
+        if len(pts) == 1:
+            return CurveShape.DOT, (pts[0], pts[0])
+        if len(pts) == 2:
+            return CurveShape.LINE, (pts[0], pts[1])
+        corners = bbox_to_corners(self.bbox)
+        is_corner_shaped, shape, eff_dir = _diagnose_corner_shaped(
+            pts, corners, in_corner_tol=in_corner_tol
+        )
+        if is_corner_shaped or (shape in {CurveShape.DOT, CurveShape.LINE_LIKE}):
+            return shape, eff_dir
+        return _diagnose_line_like_not_cornered(pts, corners)
+
+
+def _diagnose_corner_shaped(pts, corners, in_corner_tol=CORNER_TOL):
+    all_close_to_corner = True
+    closest_corners = set()
+    max_dist = float("inf")
+    for pt in pts:
+        closest_dir = None
+        closest_dist = max_dist
+        for n, c in enumerate(corners):
+            d = calc_dist(pt, c)
+            if d <= in_corner_tol and d < closest_dist:
+                closest_dist = d
+                closest_dir = _corners_order[n]
+        if closest_dir is None:
+            return False, None, None
+        else:
+            closest_corners.add(closest_dir)
+    if len(closest_corners) == 4:
+        return False, CurveShape.COMPLICATED, None
+    if len(closest_corners) == 1:
+        # might happen due to dots with rounding error preferring same corner?
+        cc = next(iter(closest_corners))
+        idx = _corners_order.index(cc)
+        cp = corners[idx]
+        return False, CurveShape.DOT, None, (cp, cp)
+    if len(closest_corners) == 3:
+        if CurveShape.CORNER_LR not in closest_corners:
+            return True, CurveShape.CORNER_UL, (corners[0], corners[2])
+        if CurveShape.CORNER_LL not in closest_corners:
+            return True, CurveShape.CORNER_UR, (corners[1], corners[3])
+        if CurveShape.CORNER_UR not in closest_corners:
+            return True, CurveShape.CORNER_LL, (corners[1], corners[3])
+        assert CurveShape.CORNER_UL not in closest_corners
+        return True, CurveShape.CORNER_LR, (corners[0], corners[2])
+    assert len(closest_corners) == 2
+    # all points close to corner, but
+    first, second = list(closest_corners)
+    fidx, sidx = _corners_order.index(first), _corners_order.index(second)
+    return False, CurveShape.LINE_LIKE, (corners[fidx], corners[sidx])
+
+
+def _diagnose_line_like_not_cornered(pts, corners):
+    by_x_t = [(i[0], i) for i in pts]
+    by_y_t = [(i[1], i) for i in pts]
+    by_x_t.sort()
+    by_y_t.sort()
+    by_x = [i[1] for i in by_x_t]
+    by_y = [i[1] for i in by_y_t]
+    if by_x == by_y:
+        return CurveShape.LINE_LIKE, (by_x[0], by_x[-1])
+    rev_by_y = by_y[::-1]
+    if by_x == rev_by_y:
+        return CurveShape.LINE_LIKE, (by_x[0], by_x[-1])
+    return CurveShape.COMPLICATED, None
 
 
 class SafeFont(object):

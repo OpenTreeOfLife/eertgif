@@ -142,3 +142,16 @@ def as_numeric(label):
         else:
             return True, f
     return False, None
+
+
+def bbox_to_corners(bbox: Rect) -> Tuple[Tuple[Point, Point]]:
+    """Bounding box to 4 pairs of coordinates.
+    assuming min x = left, and min y = Down
+    Corners in (LowerLeft, UpperLeft, UpperRight, LowerRight)).
+    """
+    tx0, ty0, tx1, ty1 = bbox
+    x0 = min(tx0, tx1)
+    x1 = max(tx0, tx1)
+    y0 = min(ty0, ty1)
+    y1 = max(ty0, ty1)
+    return ((x0, y0), (x0, y1), (x1, y1), (x1, y0))

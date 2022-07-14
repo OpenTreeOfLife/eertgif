@@ -9,7 +9,7 @@ from pdfminer.high_level import LAParams
 from pdfminer.layout import LTChar, LTFigure, LTCurve, LTTextLine, LTTextBox, LTImage
 from .to_svg import to_html
 from .graph import GraphFromEdges
-from .safe_containers import UnprocessedRegion
+from .safe_containers import UnprocessedRegion, SafeCurve
 
 log = logging.getLogger("eertgif.extract")
 # Includes some code from pdfminer layout.py
@@ -94,7 +94,7 @@ def filter_text_and_curves(text_lines, otherobjs):
     for line in text_lines:
         ftl.append(line)
     for obj in otherobjs:
-        if isinstance(obj, LTCurve):
+        if isinstance(obj, SafeCurve):
             if len(obj.pts) > 5:
                 log.debug(f"ignoring curve with too many points: {obj}, {obj.__dict__}")
                 continue
@@ -110,9 +110,6 @@ def filter_text_and_curves(text_lines, otherobjs):
 
 def analyze_figure(fig, params=None):
     unproc_page = find_text_and_curves(fig, params=params)[0]
-    return  # TEMP!
-    with open("cruft/debug.html", "w") as svg_out:
-        to_html(svg_out, unproc_region=unproc_page)
     ftl, fc = filter_text_and_curves(unproc_page.text_lines, unproc_page.nontext_objs)
     return _analyze_text_and_curves(ftl, fc)
 
