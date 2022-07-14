@@ -7,7 +7,16 @@ import logging
 log = logging.getLogger("eertgif.to_svg")
 
 
-def to_html(out, unproc_region=None):
+class SVGStyling:
+    def __init__(self):
+        self.simplify_curves = True
+
+
+# treat as immutable
+_def_style = SVGStyling()
+
+
+def to_html(out, unproc_region=None, styling=None):
     out.write(
         f"""<!DOCTYPE html>
 <html>
@@ -15,7 +24,7 @@ def to_html(out, unproc_region=None):
 <div>
 """
     )
-    to_svg(out, unproc_region=unproc_region)
+    to_svg(out, unproc_region=unproc_region, styling=styling)
     out.write(
         """</div>
 </body>
@@ -24,9 +33,10 @@ def to_html(out, unproc_region=None):
     )
 
 
-def to_svg(out, unproc_region=None):
+def to_svg(out, unproc_region=None, styling=None):
     from .safe_containers import SafeCurve
 
+    styling = styling if styling is not None else _def_style
     assert unproc_region is not None
     cbb = unproc_region.container_bbox
     height = cbb[3] - cbb[1]
@@ -41,16 +51,16 @@ def to_svg(out, unproc_region=None):
     # log.debug(f"unproc_region.nontext_objs = {unproc_region.nontext_objs}")
     for n, o in enumerate(unproc_region.nontext_objs):
         if isinstance(o, SafeCurve):
-            curve_as_path(out, o, xfn, yfn)
+            curve_as_path(out, o, xfn, yfn, styling=styling)
         else:
             log.debug(f"Skipping {o} in SVG export...\n")
     # log.debug(f"unproc_region.text_lines = {unproc_region.nontext_objs}")
     for n, text in enumerate(unproc_region.text_lines):
-        text_as_text_el(out, text, xfn, yfn)
+        text_as_text_el(out, text, xfn, yfn, styling)
     out.write("</svg>")
 
 
-def text_as_text_el(out, text, xfn, yfn):
+def text_as_text_el(out, text, xfn, yfn, styling):
     midheight = (yfn(text.y1) + yfn(text.y0)) / 2
     atts = [f'x="{xfn(text.x0)}"', f'y="{midheight}"']
     length = abs(xfn(text.x1) - xfn(text.x0))
@@ -101,30 +111,37 @@ def _append_atts_for_font(font, att_list):
     return att_list
 
 
-def curve_as_path(out, curve, xfn, yfn):
-    coord_pairs = [f"{xfn(i[0])} {yfn(i[1])}" for i in curve.pts]
+def curve_as_path(out, curve, xfn, yfn, styling):
+    styling = styling if styling is not None else _def_style
+    plot_as_diag = styling.simplify_curves and curve.eff_diagonal is not None
+    if plot_as_diag:
+        # log.debug(f"curve.eff_diagonal = {curve.eff_diagonal}")
+        coord_pairs = [f"{xfn(i[0])} {yfn(i[1])}" for i in curve.eff_diagonal]
+    else:
+        coord_pairs = [f"{xfn(i[0])} {yfn(i[1])}" for i in curve.pts]
     pt_str = " L".join(coord_pairs)
     atts = []
 
-    if curve.stroke:
+    if curve.stroke or plot_as_diag:
         atts.append(f'stroke-width="{curve.linewidth}"')
-        atts.append(f'stroke="black"')  # @TODO!
+        atts.append(f'stroke="grey"')  # @TODO!
     else:
         atts.append(f'stroke="none"')
+    # log.debug(f"curve.fill = {curve.fill} curve.non_stroking_color = {curve.non_stroking_color}")
     filling = curve.non_stroking_color and curve.non_stroking_color != (0, 0, 0)
-    if filling:
+    if curve.fill and not plot_as_diag:
         atts.append(f'fill="grey"')
         atts.append(
             "onmouseover=\"evt.target.setAttribute('stroke', 'red');evt.target.setAttribute('fill', 'red');\""
         )
         atts.append(
-            "onmouseout=\"evt.target.setAttribute('stroke', 'black');evt.target.setAttribute('fill', 'grey');\""
+            "onmouseout=\"evt.target.setAttribute('stroke', 'grey');evt.target.setAttribute('fill', 'grey');\""
         )
         s = f' <path d="M{pt_str} Z" {" ".join(atts)} />\n'
     else:
         atts.append('fill="none"')
         atts.append("onmouseover=\"evt.target.setAttribute('stroke', 'red');\"")
-        atts.append("onmouseout=\"evt.target.setAttribute('stroke', 'black');\"")
+        atts.append("onmouseout=\"evt.target.setAttribute('stroke', 'grey');\"")
         s = f' <path d="M{pt_str}" {" ".join(atts)} />\n'
 
     out.write(s)

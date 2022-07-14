@@ -16,23 +16,25 @@ class Pt(namedtuple("Pt", "x")):
     pass
 
 
+_ROUND_DIGITS = 6
+
+
 class PointMap:
-    def __init__(self):
+    def __init__(self, round_digits=_ROUND_DIGITS):
         self._items = {}
         self._rounded = {}
-
-    ROUND_DIGITS = 6
-    JITTERS = [0, 0.5 * 10 ** -ROUND_DIGITS]
+        self.round_digits = round_digits
+        self.jitters = [0, 0.5 * 10 ** -round_digits]
 
     def _round(self, pt, jitter):
-        return Pt(round(pt.x + jitter, ndigits=self.ROUND_DIGITS))
+        return Pt(round(pt.x + jitter, ndigits=self.round_digits))
 
     def _get_impl(self, pt, default=None):
         if not isinstance(pt, Pt):
             pt = Pt(float(pt))
         if pt in self._items:
             return self._items[pt], True
-        for jitter in self.JITTERS:
+        for jitter in self.jitters:
             pt_rnd = self._round(pt, jitter)
             pt0 = self._rounded.get(pt_rnd)
             if pt0 is not None:
@@ -58,7 +60,7 @@ class PointMap:
         if not isinstance(pt, Pt):
             pt = Pt(float(pt))
         self._items[pt] = val
-        for jitter in self.JITTERS:
+        for jitter in self.jitters:
             pt_rnd = self._round(pt, jitter)
             old = self._rounded.get(pt_rnd)
             store = True
@@ -74,7 +76,7 @@ class PointMap:
         return iter(self._items)
 
     def items(self):
-        return self._items.items()
+        return [(k.x, v) for k, v in self._items.items()]
 
     def keys(self):
         return [i.x for i in self._items.keys()]

@@ -7,6 +7,7 @@ from typing import Tuple, Optional
 from pdfminer.utils import Point
 from pdfminer.layout import LTChar, LTTextLineHorizontal, LTTextLineVertical, LTAnno
 from .util import AxisDir, DIM_TOL, bbox_to_corners, calc_dist
+from .point_map import PointMap
 
 log = logging.getLogger(__name__)
 
@@ -137,18 +138,60 @@ def _diagnose_corner_shaped(pts, corners, in_corner_tol=CORNER_TOL):
 
 
 def _diagnose_line_like_not_cornered(pts, corners):
-    by_x_t = [(i[0], i) for i in pts]
-    by_y_t = [(i[1], i) for i in pts]
-    by_x_t.sort()
-    by_y_t.sort()
-    by_x = [i[1] for i in by_x_t]
-    by_y = [i[1] for i in by_y_t]
-    if by_x == by_y:
-        return CurveShape.LINE_LIKE, (by_x[0], by_x[-1])
-    rev_by_y = by_y[::-1]
-    if by_x == rev_by_y:
-        return CurveShape.LINE_LIKE, (by_x[0], by_x[-1])
-    return CurveShape.COMPLICATED, None
+    diff_tol = 1e-04
+    pm = PointMap(round_digits=4)
+    for pt in pts:
+        x, y = pt
+        pm.setdefault(x, []).append(y)
+
+    inc_prev_max_y = float("-inf")
+    dec_prev_min_y = float("inf")
+    sitems = list(pm.items())
+    sitems.sort()
+    for x, y_vals in sitems:
+        if inc_prev_max_y is not None:
+            for y in y_vals:
+                if y + diff_tol < inc_prev_max_y:
+                    inc_prev_max_y = None
+                    break
+            if inc_prev_max_y is not None:
+                inc_prev_max_y = max(inc_prev_max_y, max(y_vals))
+        if dec_prev_min_y is not None:
+            for y in y_vals:
+                if y - diff_tol > dec_prev_min_y:
+                    dec_prev_min_y = None
+                    break
+            if dec_prev_min_y is not None:
+                dec_prev_min_y = min(dec_prev_min_y, min(y_vals))
+        if dec_prev_min_y is None and inc_prev_max_y is None:
+            log.debug(
+                f"COMPLICATED by_x_t:\n  by_x={by_x}\n  by_y={by_y}\n  rbyy={rev_by_y}"
+            )
+            return CurveShape.COMPLICATED, None
+    fel, lel = sitems[0], sitems[-1]
+    x0 = fel[0]
+    x1 = lel[0]
+    if inc_prev_max_y is not None:
+        y0 = min(fel[1])
+        y1 = max(lel[1])
+    else:
+        assert dec_prev_min_y is not None
+        y0 = max(fel[1])
+        y1 = min(lel[1])
+    return CurveShape.LINE_LIKE, ((x0, y0), (x1, y1))
+
+    # by_x_t = [(i[0], i) for i in pts]
+    # by_y_t = [(i[1], i) for i in pts]
+    # by_x_t.sort()
+    # by_y_t.sort()
+    # by_x = [i[1] for i in by_x_t]
+    # by_y = [i[1] for i in by_y_t]
+    # if by_x == by_y:
+    #     return CurveShape.LINE_LIKE, (by_x[0], by_x[-1])
+    # by_y_t.sort(reverse=True)
+    # rev_by_y = [i[1] for i in by_y_t]
+    # if by_x == rev_by_y:
+    #     return CurveShape.LINE_LIKE, (by_x[0], by_x[-1])
 
 
 class SafeFont(object):

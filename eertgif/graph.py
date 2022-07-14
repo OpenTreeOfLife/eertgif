@@ -143,7 +143,7 @@ class PlanarContainer(object):
         by_dist = []
         for n, row_tup in enumerate(self.by_x.items()):
             row_x, row_map = row_tup
-            dist = abs(row_x.x - x)
+            dist = abs(row_x - x)
             if dist < tol:
                 by_dist.append((dist, n, (row_x.x, row_map)))
         by_dist.sort()
