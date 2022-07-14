@@ -52,9 +52,10 @@
 <div tal:condition="single_item">
     <div tal:condition="status != 'no trees'">
         <script src="/static/treeview.js"></script>
-        <div id="tree-button-div"></div>
+        <div id="tree-button-div"><span class="button" onclick="toggleCurveSimplify()"><span>Toggle curve simplification</span></span></div>
+
         <div tal:condition="svg">
-            <p tal:content="structure svg"></p>
+            <div id="treeholder" tal:content="structure svg"></div>
         </div>
     </div>
     <div tal:condition="status == 'no trees'">

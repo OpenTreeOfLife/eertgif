@@ -114,12 +114,14 @@ def _append_atts_for_font(font, att_list):
 def curve_as_path(out, curve, xfn, yfn, styling):
     styling = styling if styling is not None else _def_style
     plot_as_diag = styling.simplify_curves and curve.eff_diagonal is not None
+    full_coord_pairs = [f"{xfn(i[0])} {yfn(i[1])}" for i in curve.pts]
     if plot_as_diag:
         # log.debug(f"curve.eff_diagonal = {curve.eff_diagonal}")
-        coord_pairs = [f"{xfn(i[0])} {yfn(i[1])}" for i in curve.eff_diagonal]
+        simp_coord_pairs = [f"{xfn(i[0])} {yfn(i[1])}" for i in curve.eff_diagonal]
     else:
-        coord_pairs = [f"{xfn(i[0])} {yfn(i[1])}" for i in curve.pts]
-    pt_str = " L".join(coord_pairs)
+        simp_coord_pairs = full_coord_pairs
+    full_pt_str = " L".join(full_coord_pairs)
+    simp_pt_str = " L".join(simp_coord_pairs)
     atts = []
 
     if curve.stroke or plot_as_diag:
@@ -137,11 +139,11 @@ def curve_as_path(out, curve, xfn, yfn, styling):
         atts.append(
             "onmouseout=\"evt.target.setAttribute('stroke', 'grey');evt.target.setAttribute('fill', 'grey');\""
         )
-        s = f' <path d="M{pt_str} Z" {" ".join(atts)} />\n'
+        s = f' <path d="M{simp_pt_str} Z" alt_d="M{full_pt_str}" {" ".join(atts)} />\n'
     else:
         atts.append('fill="none"')
         atts.append("onmouseover=\"evt.target.setAttribute('stroke', 'red');\"")
         atts.append("onmouseout=\"evt.target.setAttribute('stroke', 'grey');\"")
-        s = f' <path d="M{pt_str}" {" ".join(atts)} />\n'
+        s = f' <path d="M{simp_pt_str}" alt_d="M{full_pt_str}" {" ".join(atts)} />\n'
 
     out.write(s)
