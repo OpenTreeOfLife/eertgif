@@ -139,11 +139,19 @@ def curve_as_path(out, curve, xfn, yfn, styling):
         atts.append(
             "onmouseout=\"evt.target.setAttribute('stroke', 'grey');evt.target.setAttribute('fill', 'grey');\""
         )
-        s = f' <path d="M{simp_pt_str} Z" alt_d="M{full_pt_str}" {" ".join(atts)} />\n'
+        if plot_as_diag:
+            pref = f'd="M{simp_pt_str} Z" alt_d="M{full_pt_str} Z" '
+        else:
+            pref = f'd="M{simp_pt_str} Z" '
+        s = f' <path {pref} {" ".join(atts)} />\n'
     else:
         atts.append('fill="none"')
         atts.append("onmouseover=\"evt.target.setAttribute('stroke', 'red');\"")
         atts.append("onmouseout=\"evt.target.setAttribute('stroke', 'grey');\"")
-        s = f' <path d="M{simp_pt_str}" alt_d="M{full_pt_str}" {" ".join(atts)} />\n'
+        if plot_as_diag:
+            pref = f'd="M{simp_pt_str}" alt_d="M{full_pt_str}" '
+        else:
+            pref = f'd="M{simp_pt_str}" '
+        s = f' <path {pref} {" ".join(atts)} />\n'
 
     out.write(s)
