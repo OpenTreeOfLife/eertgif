@@ -1100,6 +1100,26 @@ class SafeFont(object):
 
 
 _cid_num_pat = re.compile(r"^[(]cid:(\d+)[)]$")
+REPLACE_CHAR = "�"
+
+
+def _safe_char(el):
+    ch_text = el.get_text()
+    if len(ch_text) == 1:
+        return ch_text
+    m = _cid_num_pat.match(ch_text)
+    # matched_font = None
+    # for v in pdf_interpret.fontmap.values():
+    #     if v.fontname == f:
+    #         matched_font = v
+    #         break
+    if m:
+        cidn = int(m.group(1))
+        log.debug(f"inserting missing char instead of cid:{cidn} code")
+        return REPLACE_CHAR
+    msg = f"multi-character LTChar/LTAnno text '{ch_text}' not matching cid pattern"
+    log.debug(msg)
+    raise RuntimeError(msg)
 
 
 class SafeTextLine(object):
@@ -1129,42 +1149,15 @@ class SafeTextLine(object):
             if isinstance(el, LTChar):
                 f = el.fontname
                 safe_font = font_dict.get(f)
-                prev_font = safe_font
                 if safe_font is None:
                     safe_font = SafeFont(f)
                     font_dict[f] = safe_font
                 all_fonts.add(safe_font)
-                font_for_char.append(safe_font)
-                ch_text = el.get_text()
-                if len(ch_text) != 1:
-                    m = _cid_num_pat.match(ch_text)
-                    matched_font = None
-                    for v in pdf_interpret.fontmap.values():
-                        if v.fontname == f:
-                            matched_font = v
-                            break
-                    if m:
-                        cidn = int(m.group(1))
-                        matched_uni = (
-                            None if matched_font else matched_font.cid2unicode.get(cidn)
-                        )
-                        log.debug(f"pdf_interpretfontmap.items = {str()}")
-                    else:
-                        log.debug(f"multi-character LTChar text '{anno_text}'")
-                        assert len(ch_text) == 1
-
-                char_list.append(ch_text)
+                prev_font = safe_font
             else:
                 assert isinstance(el, LTAnno)
-                anno_text = el.get_text()
-                if prev_font is not None:
-                    font_for_char.append(prev_font)
-                else:
-                    assert False, "not expecting a string to start with LTAnno..."
-                if len(anno_text) != 1:
-                    log.debug(f"multi-character LTAnno text '{anno_text}'")
-                    assert len(anno_text) == 1
-                char_list.append(anno_text)
+            font_for_char.append(prev_font)
+            char_list.append(_safe_char(el))
             el_count += 1
         self.text = "".join(char_list)
 
@@ -1183,20 +1176,25 @@ class SafeTextLine(object):
             self.font = font_for_char[0]
         else:
             self.font = font_for_char
-            if font_for_char and font_for_char[0] is None:
-                fnnf = None
-                for f in font_for_char:
-                    if f is not None:
-                        fnnf = f
-                        break
-                assert fnff is not None
-                idx = 0
-                while True:
-                    if font_for_char[idx] is None:
-                        font_for_char[idx] = fnnf
-                        idx += 1
-                    else:
-                        break
+            if all_fonts:
+                if font_for_char and font_for_char[0] is None:
+                    fnnf = None
+                    for f in font_for_char:
+                        if f is not None:
+                            fnnf = f
+                            break
+                    assert fnnf is not None
+                    idx = 0
+                    while True:
+                        if font_for_char[idx] is None:
+                            font_for_char[idx] = fnnf
+                            idx += 1
+                        else:
+                            break
+            else:
+                log.debug("Text line lacking any font")
+        if self.font is None:
+            assert self.font is not None
 
     def get_text(self):
         return self.text
