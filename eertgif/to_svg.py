@@ -25,7 +25,7 @@ def to_html(out, unproc_region=None):
 
 
 def to_svg(out, unproc_region=None):
-    from .extract import SafeCurve
+    from .safe_containers import SafeCurve
 
     assert unproc_region is not None
     cbb = unproc_region.container_bbox
