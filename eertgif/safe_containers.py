@@ -164,9 +164,6 @@ def _diagnose_line_like_not_cornered(pts, corners):
             if dec_prev_min_y is not None:
                 dec_prev_min_y = min(dec_prev_min_y, min(y_vals))
         if dec_prev_min_y is None and inc_prev_max_y is None:
-            log.debug(
-                f"COMPLICATED by_x_t:\n  by_x={by_x}\n  by_y={by_y}\n  rbyy={rev_by_y}"
-            )
             return CurveShape.COMPLICATED, None
     fel, lel = sitems[0], sitems[-1]
     x0 = fel[0]

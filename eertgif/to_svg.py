@@ -124,11 +124,12 @@ def curve_as_path(out, curve, xfn, yfn, styling):
     simp_pt_str = " L".join(simp_coord_pairs)
     atts = []
 
-    if curve.stroke or plot_as_diag:
+    # if curve.stroke or plot_as_diag:
+    if curve.linewidth:
         atts.append(f'stroke-width="{curve.linewidth}"')
-        atts.append(f'stroke="grey"')  # @TODO!
-    else:
-        atts.append(f'stroke="none"')
+    atts.append(f'stroke="grey"')  # @TODO!
+    # else:
+    #    atts.append(f'stroke="none"')
     # log.debug(f"curve.fill = {curve.fill} curve.non_stroking_color = {curve.non_stroking_color}")
     filling = curve.non_stroking_color and curve.non_stroking_color != (0, 0, 0)
     if curve.fill and not plot_as_diag:
