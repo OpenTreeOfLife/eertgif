@@ -24,6 +24,7 @@ class Node(object):
         else:
             self.loc = loc
         self.edges = set()
+        self.component_idx = None
 
     def add_edge(self, edge: Edge) -> None:
         self.edges.add(edge)
@@ -160,10 +161,10 @@ class PlanarContainer(object):
 
 
 class GraphFromEdges(object):
-    def __init__(self, id_gen):
+    def __init__(self, id_gen, node_merge_tol=0.01):
         self.nodes = PlanarContainer(id_gen)
         self.edges = set()
-        self.tol = 0.01
+        self.tol = node_merge_tol
         self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
         self.id_gen = id_gen
 
@@ -196,8 +197,11 @@ class GraphFromEdges(object):
             if nd in included:
                 continue
             nd_set = set()
+            component_idx = len(forest.components)
             forest.components.append(nd_set)
             nd.add_connected(nd_set)
+            for nn in nd_set:
+                nn.component_idx = component_idx
             assert not included.intersection(nd_set)
             included.update(nd_set)
         return forest

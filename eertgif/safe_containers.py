@@ -352,6 +352,7 @@ def convert_to_safe_curves(curves, eertgif_id):
 
 class UnprocessedRegion(object):
     def __init__(self, text_lines, nontext_objs, container, pdf_interpret=None):
+        self.display_mode = DisplayMode.CURVES_AND_TEXT
         self.page_num = None
         self.subpage_num = None
         eertgif_id = 0
@@ -374,6 +375,11 @@ class UnprocessedRegion(object):
     @property
     def has_content(self):
         return bool(self.text_lines) or bool(self.nontext_objs)
+
+    def as_svg_str(self):
+        from .to_svg import get_svg_str
+
+        return get_svg_str(self)
 
     @property
     def tag(self):

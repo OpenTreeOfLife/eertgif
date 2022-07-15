@@ -13,7 +13,11 @@
 
 <div tal:condition="status != 'no trees'">
     <script src="/static/treeview.js"></script>
-    <div id="tree-button-div"><span class="button" onclick="toggleCurveSimplify()"><span>Toggle curve simplification</span></span></div>
+    <div id="tree-button-div">
+        <span class="button" onclick="toggleCurveSimplify()"><span>Toggle curve simplification</span></span>
+        <br />
+        <input type="text" id="node_tol_input" name="node_tol" value="${node_merge_tol}" /><span class="button" onclick="detectComponents()"><span>detect components</span></span>
+    </div>
 
     <div tal:condition="svg">
         <div id="treeholder" tal:content="structure svg"></div>

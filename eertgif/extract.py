@@ -11,7 +11,7 @@ from pdfminer.high_level import LAParams
 from pdfminer.layout import LTChar, LTFigure, LTCurve, LTTextLine, LTTextBox, LTImage
 from .to_svg import to_html
 from .graph import GraphFromEdges
-from .util import CurveShape
+from .util import CurveShape, DisplayMode
 from .safe_containers import UnprocessedRegion, SafeCurve
 
 log = logging.getLogger("eertgif.extract")
@@ -65,6 +65,8 @@ _def_filter_shapes = {CurveShape.COMPLICATED, CurveShape.DOT}
 
 class ExtractionManager(object):
     def __init__(self, unproc_page):
+        self.display_mode = DisplayMode.CURVES_AND_TEXT
+        self.node_merge_tol = 0.01
         self.page_num = unproc_page.page_num
         self.subpage_num = unproc_page.subpage_num
         self.font_dict = dict(unproc_page.font_dict)
@@ -89,6 +91,14 @@ class ExtractionManager(object):
         self._by_id = {}
         self._filter()
         self._update_by_id_map()
+
+    def as_svg_str(self):
+        from .to_svg import get_svg_str
+
+        if self.forest is None:
+            return get_svg_str(obj_container=self)
+        if self.best_tree is None:
+            return get_svg_str(obj_container=self)
 
     @staticmethod
     def unpickle(self, in_stream):
@@ -129,7 +139,6 @@ class ExtractionManager(object):
                         m[phynd.eertgif_id] = phynd
                 for leg in f.legends:
                     m[leg.eertgif_id] = leg
-
         self._by_id = m
 
     def pickle(self, out_stream):
@@ -158,11 +167,27 @@ class ExtractionManager(object):
             else:
                 self.nontext_objs.append(obj)
 
-    def analyze(self):
-        self.graph = GraphFromEdges(self)
-        for curve in self.nontext_objs:
-            self.graph.add_curve(curve)
-        self.forest = self.graph.build_forest()
+    def detect_components(self, node_merge_tol=None, suppress_update_map=False):
+        node_merge_tol = (
+            node_merge_tol if node_merge_tol is not None else self.node_merge_tol
+        )
+        new_graph = self.graph is None or self.graph.tol != node_merge_tol
+        if new_graph:
+            self.node_merge_tol = node_merge_tol
+            self.graph = GraphFromEdges(self, node_merge_tol=self.node_merge_tol)
+            for curve in self.nontext_objs:
+                self.graph.add_curve(curve)
+        new_forest = self.forest is None or new_graph
+        if new_forest:
+            self.forest = self.graph.build_forest()
+        if (new_forest or new_graph) and not suppress_update_map:
+            self._update_by_id_map()
+        if self.display_mode == DisplayMode.CURVES_AND_TEXT:
+            self.display_mode = DisplayMode.COMPONENTS
+
+    def analyze(self, node_merge_tol=None):
+        # build forest, but don't update map, as we'll do that after the trees are made
+        self.detect_components(node_merge_tol=node_merge_tol, suppress_update_map=True)
         extra_lines = set(self.text_lines)
         best_tree, best_score = None, float("inf")
         for n, c in enumerate(self.forest.components):
@@ -177,7 +202,9 @@ class ExtractionManager(object):
         self.best_tree = best_tree
         self.best_legend = None
         if not best_tree:
+            self._update_by_id_map()
             return None
+        self.display_mode = DisplayMode.PHYLO
         pma = best_tree.attempt
         best_legend, best_leg_score = None, float("inf")
         for n, c in enumerate(self.forest.components):
@@ -188,6 +215,7 @@ class ExtractionManager(object):
                     best_legend = legend
         self.best_legend = best_legend
         best_tree.clean_for_export()
+        self._update_by_id_map()
         return self.best_tree
 
     @property

@@ -14,7 +14,6 @@ from pyramid.view import view_config
 from pdfminer.image import ImageWriter
 from .extract import get_regions_unprocessed, UnprocessedRegion, ExtractionManager
 from .study_container import StudyContainer, RegionStatus
-from .to_svg import get_svg_str
 
 log = logging.getLogger("eertgif")
 
@@ -202,8 +201,14 @@ class EertgifView:
             else:
                 assert isinstance(obj_for_region, ExtractionManager)
                 em = obj_for_region
-        svg = get_svg_str(em)
-        d = {"tag": tag, "region_id": page_id, "svg": svg, "status": status}
+        svg = em.as_svg_str()
+        d = {
+            "tag": tag,
+            "region_id": page_id,
+            "svg": svg,
+            "status": status,
+            "node_merge_tol": em.node_merge_tol,
+        }
         return d
 
     @view_config(route_name="eertgif:view", renderer="templates/view.pt")
@@ -249,7 +254,7 @@ class EertgifView:
                     return HTTPConflict(
                         "Unknown error, please report this and the relevant parts of eertgif.log to developers"
                     )
-                svg = get_svg_str(obj_for_region)
+                svg = obj_for_region.as_svg_str()
         else:
             if len(pages) > 1:
                 next_region_id = pages[0][0]

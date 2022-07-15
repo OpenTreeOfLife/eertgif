@@ -49,6 +49,12 @@ class AxisDir(IntEnum):
 CARDINAL = (Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST)
 
 
+class DisplayMode:
+    CURVES_AND_TEXT = 0  # Initial import, no analysis done
+    COMPONENTS = 1  # creation of a forest based on node detection, but no tree
+    PHYLO = 2  # tree has been extracted
+
+
 class Penalty(Enum):
     LABEL_GAP_MEAN = 0
     LABEL_GAP_STD_DEV = 1

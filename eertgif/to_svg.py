@@ -11,7 +11,7 @@ log = logging.getLogger("eertgif.to_svg")
 
 class SVGStyling:
     def __init__(self):
-        self.simplify_curves = True
+        pass
 
 
 # treat as immutable
@@ -35,7 +35,7 @@ def to_html(out, obj_container=None, styling=None):
     )
 
 
-def get_svg_str(obj_container, styling=None):
+def get_svg_str(obj_container=None, styling=None):
     x = StringIO()
     to_svg(x, obj_container=obj_container)
     return x.getvalue()
@@ -124,7 +124,7 @@ def _append_atts_for_font(font, att_list):
 
 def curve_as_path(out, curve, xfn, yfn, styling):
     styling = styling if styling is not None else _def_style
-    plot_as_diag = styling.simplify_curves and curve.eff_diagonal is not None
+    plot_as_diag = curve.eff_diagonal is not None
     full_coord_pairs = [f"{xfn(i[0])} {yfn(i[1])}" for i in curve.pts]
     if plot_as_diag:
         # log.debug(f"curve.eff_diagonal = {curve.eff_diagonal}")
