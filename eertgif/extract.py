@@ -5,6 +5,7 @@ import logging
 import sys
 from typing import List, Tuple
 from threading import Lock
+import pickle
 
 from pdfminer.high_level import LAParams
 from pdfminer.layout import LTChar, LTFigure, LTCurve, LTTextLine, LTTextBox, LTImage
@@ -85,7 +86,60 @@ class ExtractionManager(object):
         self.forest = None
         self.best_tree = None
         self.best_legend = None
+        self._by_id = {}
         self._filter()
+        self._update_by_id_map()
+
+    @staticmethod
+    def unpickle(self, in_stream):
+        o = pickle.load(pinp)
+        assert isinstance(o, ExtractionManager)
+        o.id_lock = Lock()
+        o._update_by_id_map()
+
+    def _update_by_id_map(self):
+        m = {}
+        for top_list in [
+            self._raw_text_lines,
+            self._raw_nontext_objs,
+            [self.graph, self.forest],
+        ]:
+            for el in top_list:
+                if el is not None:
+                    m[el.eertgif_id] = el
+        if self.graph is not None:
+            m[self.graph.nodes.eertgif_id] = self.graph.nodes
+        if self.forest is not None:
+            f = self.forest
+            for c in f.components:
+                # record all the nodes and edges
+                for nd in c:
+                    m[nd.eertgif_id] = nd
+                    for e in nd.edges:
+                        m[e.eertgif_id] = e
+                # record all the PhyloTrees
+                for t in f.trees:
+                    m[t.eertgif_id] = t
+                    pma = t.pma
+                    if pma:
+                        m[pma.eertgif_id] = pma
+                        if pma.phy_ctx:
+                            m[pma.phy_ctx.eertgif_id] = pma.phy_ctx
+                    for phynd in t.post_order():
+                        m[phynd.eertgif_id] = phynd
+
+        self._by_id = m
+
+    def pickle(self, out_stream):
+        d = self._by_id
+        l = self.id_lock
+        try:
+            self._by_id = {}
+            self.id_lock = None
+            pickle.dump(ur, f_out, protocol=pickle.HIGHEST_PROTOCOL)
+        finally:
+            self._by_id = d
+            self.id_lock = l
 
     def get_new_id(self):
         with self.id_lock:

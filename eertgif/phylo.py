@@ -244,7 +244,7 @@ class PhyloNode(object):
         self,
         vnode: Node = None,
         label_obj: SafeTextLine = None,
-        phy_ctx: PhyloTreeData = None,
+        phy_ctx: PhyloTreeData = None,  # alias to mapping's data struct
         id_gen=None,
     ):
         self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
@@ -416,6 +416,7 @@ class PhyloMapAttempt(object):
         self.unused_perpindicular_text = []
         self.unused_inline_text = []
         self.messages = []
+        self.phy_ctx = None
 
     @property
     def unused_text(self):
@@ -487,6 +488,7 @@ class PhyloMapAttempt(object):
         node2phyn = {}
         leaves = set()
         phy_ctx = PhyloTreeData(tip_dir=tip_dir, attempt=self, id_gen=self.id_gen)
+        self.phy_ctx = phy_ctx
         for tl in tip_labels:
             ml = label2leaf[tl][0]
             phynd = PhyloNode(
