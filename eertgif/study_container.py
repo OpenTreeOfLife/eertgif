@@ -90,6 +90,9 @@ class StudyContainer(object):
             self._obj_for_regions[idx] = o
         return o
 
+    def set_object_for_region(self, idx, obj):
+        self._obj_for_regions[idx] = obj
+
     def path_to_image(self, img_id) -> Optional[str]:
         suffix = f"{os.sep}img{os.sep}{img_id}"
         for i in self.all_file_paths:

@@ -8,7 +8,7 @@
 <script src="/static/jquery-3.6.0.min.js"></script>
 
 <h2>Editing <span tal:condition="single_item">region ${pages[0][0]} of </span>study "${tag}"</h2>
-<span tal:condition="prev_region_id"><a class="button" href="/edit/${tag}?page=${prev_region_id}">Previous region</a></span> <span tal:condition="not prev_region_id">(no previous region)</span> <span tal:condition="single_item and (status == 'unknown')"><a class="button" href="/set_status/${tag}?page=${pages[0][0]}&status=no%20trees">Flag as lacking tree</a> <a class="button" href="/extract/${tag}?page=${pages[0][0]}">Begin extracting tree</a></span><span tal:condition="single_item and (status == 'no trees')"><a class="button" href="/set_status/${tag}?page=${pages[0][0]}&status=unknown">Revert region status to "unknown"</a></span> <span tal:condition="next_region_id"><a class="button" href="/edit/${tag}?page=${next_region_id}">Next region</a></span><span tal:condition="not next_region_id">(no next region)</span>
+<span tal:condition="prev_region_id"><a class="button" href="/view/${tag}?page=${prev_region_id}">Previous region</a></span> <span tal:condition="not prev_region_id">(no previous region)</span> <span tal:condition="single_item and (status == 'unknown')"><a class="button" href="/set_status/${tag}?page=${pages[0][0]}&status=no%20trees">Flag as lacking tree</a> <a class="button" href="/extract/${tag}?page=${pages[0][0]}">Begin extracting tree</a></span><span tal:condition="single_item and (status == 'no trees')"><a class="button" href="/set_status/${tag}?page=${pages[0][0]}&status=unknown">Revert region status to "unknown"</a></span> <span tal:condition="next_region_id"><a class="button" href="/view/${tag}?page=${next_region_id}">Next region</a></span><span tal:condition="not next_region_id">(no next region)</span>
 
 <hr />
 
@@ -18,7 +18,7 @@
         <table>
           <tr><th>Page/Region</th><th>Tree status</th></tr>
           <tr tal:repeat="page pages">
-            <td><a href="/edit/${tag}?page=${page[0]}">${page[0]}</a></td>
+            <td><a href="/view/${tag}?page=${page[0]}">${page[0]}</a></td>
             <td>${page[1]}</td>
           </tr>
         </table>
@@ -29,8 +29,8 @@
         <h3>Images that eertgif cannot analyze:</h3>
         <table>
           <tr tal:repeat="img images">
-            <td><a href="/view/${tag}?image=${img}">
-                <img src="/view/${tag}?image=${img}" alt="unparsable image ${img} of ${tag}" height="75px"/>
+            <td><a href="/image/${tag}?image=${img}">
+                <img src="/image/${tag}?image=${img}" alt="unparsable image ${img} of ${tag}" height="75px"/>
                 </a>
             </td>
           </tr>
@@ -62,7 +62,7 @@
         <p style="font-size:160%;">This regions has been flagged as lacking trees</p>
     </div>
 
-    <p>Back to full study view at <a href="/edit/${tag}">edit/${tag}</a>.</p>
+    <p>Back to full study view at <a href="/view/${tag}">edit/${tag}</a>.</p>
     <hr />
 </div>
 

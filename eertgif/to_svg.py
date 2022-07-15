@@ -4,6 +4,8 @@ from __future__ import annotations
 import html
 import logging
 
+from io import StringIO
+
 log = logging.getLogger("eertgif.to_svg")
 
 
@@ -16,7 +18,7 @@ class SVGStyling:
 _def_style = SVGStyling()
 
 
-def to_html(out, unproc_region=None, styling=None):
+def to_html(out, obj_container=None, styling=None):
     out.write(
         f"""<!DOCTYPE html>
 <html>
@@ -24,7 +26,7 @@ def to_html(out, unproc_region=None, styling=None):
 <div>
 """
     )
-    to_svg(out, unproc_region=unproc_region, styling=styling)
+    to_svg(out, obj_container=obj_container, styling=styling)
     out.write(
         """</div>
 </body>
@@ -33,12 +35,18 @@ def to_html(out, unproc_region=None, styling=None):
     )
 
 
-def to_svg(out, unproc_region=None, styling=None):
+def get_svg_str(obj_container, styling=None):
+    x = StringIO()
+    to_svg(x, obj_container=obj_container)
+    return x.getvalue()
+
+
+def to_svg(out, obj_container=None, styling=None):
     from .safe_containers import SafeCurve
 
     styling = styling if styling is not None else _def_style
-    assert unproc_region is not None
-    cbb = unproc_region.container_bbox
+    assert obj_container is not None
+    cbb = obj_container.container_bbox
     height = cbb[3] - cbb[1]
     width = cbb[2] - cbb[0]
     xfn = lambda x: x - cbb[0]
@@ -48,14 +56,14 @@ def to_svg(out, unproc_region=None, styling=None):
         f"""<svg viewBox="0 0 {width} {height}" > 
 """
     )
-    # log.debug(f"unproc_region.nontext_objs = {unproc_region.nontext_objs}")
-    for n, o in enumerate(unproc_region.nontext_objs):
+    # log.debug(f"obj_container.nontext_objs = {obj_container.nontext_objs}")
+    for n, o in enumerate(obj_container.nontext_objs):
         if isinstance(o, SafeCurve):
             curve_as_path(out, o, xfn, yfn, styling=styling)
         else:
             log.debug(f"Skipping {o} in SVG export...\n")
-    # log.debug(f"unproc_region.text_lines = {unproc_region.nontext_objs}")
-    for n, text in enumerate(unproc_region.text_lines):
+    # log.debug(f"obj_container.text_lines = {obj_container.nontext_objs}")
+    for n, text in enumerate(obj_container.text_lines):
         text_as_text_el(out, text, xfn, yfn, styling)
     out.write("</svg>")
 

@@ -6,16 +6,15 @@ import pickle
 import re
 import shutil
 import tempfile
-from io import StringIO
 from threading import Lock
 
 from pyramid.httpexceptions import HTTPConflict, HTTPBadRequest, HTTPFound, HTTPNotFound
 from pyramid.view import view_config
 
 from pdfminer.image import ImageWriter
-from .extract import get_regions_unprocessed, UnprocessedRegion
+from .extract import get_regions_unprocessed, UnprocessedRegion, ExtractionManager
 from .study_container import StudyContainer, RegionStatus
-from .to_svg import to_svg
+from .to_svg import get_svg_str
 
 log = logging.getLogger("eertgif")
 
@@ -171,9 +170,9 @@ class EertgifView:
             if idx is None:
                 return HTTPNotFound(f"Region/Page {page_id} in {tag} does not exist.")
             top_cont.page_status_list[idx] = validated_stat
-        return HTTPFound(f"/edit/{tag}?page={page_id}")
+        return HTTPFound(f"/view/{tag}?page={page_id}")
 
-    @view_config(route_name="eertgif:extract")
+    @view_config(route_name="eertgif:extract", renderer="templates/extract.pt")
     def extract_view(self):
         tag, page_id = self._get_tag_and_mandatory_page_id()
         study_lock, top_cont = self._get_lock_and_top(tag)
@@ -184,23 +183,30 @@ class EertgifView:
         if idx is None:
             return HTTPNotFound(f"Region/Page {page_id} in {tag} does not exist.")
         page = pages[idx]
-        if page_status[idx] == RegionStatus.UNKNOWN:
+        status = page_status[idx]
+        if status == RegionStatus.NO_TREES:
             return HTTPBadRequest(
                 "Cannot call extract on a page/region that is marked as having no trees."
             )
-        try:
-            with study_lock:
-                object_for_region = top_cont.object_for_region(idx)
-        except RuntimeError as x:
-            log.exception("exception -> HTTPConflict")
-            return HTTPConflict(
-                "Unknown error, please report this and the eertgif.log to developers"
-            )
-        if isinstance(object_for_region, UnprocessedRegion):
-            pass
-        return HTTPFound(f"/edit/{tag}?page={page_id}")
+        with study_lock:
+            try:
+                obj_for_region = top_cont.object_for_region(idx)
+            except RuntimeError as x:
+                log.exception("exception -> HTTPConflict")
+                return HTTPConflict(
+                    "Unknown error, please report this and the eertgif.log to developers"
+                )
+            if isinstance(obj_for_region, UnprocessedRegion):
+                em = ExtractionManager(obj_for_region)
+                top_cont.set_object_for_region(idx, em)
+            else:
+                assert isinstance(obj_for_region, ExtractionManager)
+                em = obj_for_region
+        svg = get_svg_str(em)
+        d = {"tag": tag, "region_id": page_id, "svg": svg, "status": status}
+        return d
 
-    @view_config(route_name="eertgif:edit", renderer="templates/edit.pt")
+    @view_config(route_name="eertgif:view", renderer="templates/view.pt")
     def edit_view(self):
         tag = self.request.matchdict["tag"]
         page_id = self.request.params.get("page")
@@ -234,16 +240,16 @@ class EertgifView:
             if status != RegionStatus.NO_TREES:
                 try:
                     with study_lock:
-                        object_for_region = top_cont.object_for_region(idx)
-                except RuntimeError as x:
+                        obj_for_region = top_cont.object_for_region(idx)
+                    assert isinstance(obj_for_region, UnprocessedRegion) or isinstance(
+                        obj_for_region, ExtractionManager
+                    )
+                except:
                     log.exception("exception -> HTTPConflict")
                     return HTTPConflict(
-                        "Unknown error, please report this and the eertgif.log to developers"
+                        "Unknown error, please report this and the relevant parts of eertgif.log to developers"
                     )
-                if isinstance(object_for_region, UnprocessedRegion):
-                    x = StringIO()
-                    to_svg(x, unproc_region=object_for_region)
-                    svg = x.getvalue()
+                svg = get_svg_str(obj_for_region)
         else:
             if len(pages) > 1:
                 next_region_id = pages[0][0]
@@ -260,15 +266,15 @@ class EertgifView:
         }
         return d
 
-    @view_config(route_name="eertgif:view")
-    def view_view(self):
+    @view_config(route_name="eertgif:image")
+    def image_view(self):
         tag = self.request.matchdict["tag"]
         img_id = self.request.params.get("image")
         if img_id is None:
             page_id = self.request.params.get("page")
             if page_id is None:
-                return HTTPFound(location="/edit/{tag}")
-            return HTTPFound(location="/edit/{tag}?page={page_id}")
+                return HTTPFound(location="/view/{tag}")
+            return HTTPFound(location="/view/{tag}?page={page_id}")
         study_lock, top_cont = self._get_lock_and_top(tag)
         with study_lock:
             path_to_image = top_cont.path_to_image(img_id)
@@ -378,7 +384,7 @@ class EertgifView:
                 )
             blob["unprocessed"] = pickled
             _serialize_info_blob_unlocked(blob, dest_dir)
-        return HTTPFound(location=f"/edit/{tag}")
+        return HTTPFound(location=f"/view/{tag}")
 
 
 def force_remove_study_from_upload_globals(tag):
