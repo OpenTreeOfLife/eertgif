@@ -127,6 +127,8 @@ class ExtractionManager(object):
                             m[pma.phy_ctx.eertgif_id] = pma.phy_ctx
                     for phynd in t.post_order():
                         m[phynd.eertgif_id] = phynd
+                for leg in f.legends:
+                    m[leg.eertgif_id] = leg
 
         self._by_id = m
 
