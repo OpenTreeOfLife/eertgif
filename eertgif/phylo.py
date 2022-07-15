@@ -34,7 +34,10 @@ class PhyloTree(object):
         connected_nodes: Set[Node] = None,
         forest: Forest = None,
         text_lines: List[SafeTextLine] = None,
+        id_gen=None,
     ):
+        self.id_gen = id_gen
+        self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
         self.forest = forest
         self.used_text = set()
         self.root = None
@@ -184,7 +187,7 @@ class PhyloTree(object):
         for nd in externals:
             if nd not in matched_leaves:
                 unmatched_ext.add(nd)
-        pma = PhyloMapAttempt()
+        pma = PhyloMapAttempt(id_gen=self.id_gen)
         if matched_labels:
             expected_def_gap = avg_char_width(matched_labels)
             mean_obs_gap, var_gap = mean_var(matched_dists)
@@ -208,7 +211,10 @@ class PhyloTree(object):
 class PhyloTreeData(object):
     """Blob of data common to all nodes/edges"""
 
-    def __init__(self, tip_dir: Direction = None, attempt: PhyloMapAttempt = None):
+    def __init__(
+        self, tip_dir: Direction = None, attempt: PhyloMapAttempt = None, id_gen=None
+    ):
+        self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
         self._tip_dir = None
         self.pos_min_fn = None
         self.child_pos_fn = None
@@ -239,7 +245,9 @@ class PhyloNode(object):
         vnode: Node = None,
         label_obj: SafeTextLine = None,
         phy_ctx: PhyloTreeData = None,
+        id_gen=None,
     ):
+        self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
         if vnode:
             assert isinstance(vnode, Node)
         self.vnode = vnode
@@ -398,7 +406,9 @@ class PhyloEdge(object):
 
 
 class PhyloMapAttempt(object):
-    def __init__(self):
+    def __init__(self, id_gen=None):
+        self.id_gen = id_gen
+        self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
         self.penalties = {}
         self.penalty_weights = {}
         self.root = None
@@ -476,21 +486,23 @@ class PhyloMapAttempt(object):
     ) -> Dict[Node, PhyloNode]:
         node2phyn = {}
         leaves = set()
-        phy_ctx = PhyloTreeData(tip_dir=tip_dir, attempt=self)
+        phy_ctx = PhyloTreeData(tip_dir=tip_dir, attempt=self, id_gen=self.id_gen)
         for tl in tip_labels:
             ml = label2leaf[tl][0]
-            phynd = PhyloNode(vnode=ml, label_obj=tl, phy_ctx=phy_ctx)
+            phynd = PhyloNode(
+                vnode=ml, label_obj=tl, phy_ctx=phy_ctx, id_gen=self.id_gen
+            )
             node2phyn[ml] = phynd
             leaves.add(phynd)
         int_phylo = set()
         for ul in unmatched_lvs:
             assert ul not in node2phyn
-            phynd = PhyloNode(vnode=ul, phy_ctx=phy_ctx)
+            phynd = PhyloNode(vnode=ul, phy_ctx=phy_ctx, id_gen=self.id_gen)
             node2phyn[ul] = phynd
             leaves.add(phynd)
         for i_nd in internals:
             assert i_nd not in node2phyn
-            phynd = PhyloNode(vnode=i_nd, phy_ctx=phy_ctx)
+            phynd = PhyloNode(vnode=i_nd, phy_ctx=phy_ctx, id_gen=self.id_gen)
             node2phyn[i_nd] = phynd
             int_phylo.add(phynd)
         for phynd in leaves:
@@ -512,8 +524,10 @@ class PhyloLegend(object):
         connected_nodes: Set[Node] = None,
         forest: Forest = None,
         text_lines: List[SafeTextLine] = None,
+        id_gen=None,
     ):
         self.forest = forest
+        self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
         self.score = None
         edges = set()
         for nd in connected_nodes:

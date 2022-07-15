@@ -6,21 +6,10 @@ from enum import IntEnum
 from typing import Tuple, Optional
 from pdfminer.utils import Point
 from pdfminer.layout import LTChar, LTTextLineHorizontal, LTTextLineVertical, LTAnno
-from .util import AxisDir, DIM_TOL, bbox_to_corners, calc_dist
+from .util import AxisDir, DIM_TOL, bbox_to_corners, calc_dist, CurveShape
 from .point_map import PointMap
 
 log = logging.getLogger(__name__)
-
-
-class CurveShape(IntEnum):
-    LINE = 0
-    CORNER_LL = 1  # └
-    CORNER_UL = 2  # ┌
-    CORNER_UR = 3  # ┐
-    CORNER_LR = 4  #  ┘
-    LINE_LIKE = 5
-    COMPLICATED = 6
-    DOT = 7
 
 
 # pretty arbitrary guess, here. distance to count as "near" a corner
@@ -209,6 +198,7 @@ class SafeFont(object):
         self.font_weight = "normal"
         if "bold" in self._lc_font_desc:
             self.font_weight = "bold"
+        self.eertgif_id = None
 
     @property
     def font_family(self):
@@ -376,6 +366,10 @@ class UnprocessedRegion(object):
         for el in self.container_bbox:
             assert isinstance(el, float) or isinstance(el, int)
         log.debug(f"UnprocessedRegion fonts descriptors={list(self.font_dict.keys())}")
+        for font in self.font_dict.values():
+            font.eertgif_id = eertgif_id
+            eertgif_id += 1
+        self.eertgif_id = eertgif_id
 
     @property
     def has_content(self):

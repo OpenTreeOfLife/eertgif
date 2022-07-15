@@ -4,47 +4,17 @@ from __future__ import annotations
 import logging
 import sys
 from typing import List, Tuple
+from threading import Lock
 
 from pdfminer.high_level import LAParams
 from pdfminer.layout import LTChar, LTFigure, LTCurve, LTTextLine, LTTextBox, LTImage
 from .to_svg import to_html
 from .graph import GraphFromEdges
+from .util import CurveShape
 from .safe_containers import UnprocessedRegion, SafeCurve
 
 log = logging.getLogger("eertgif.extract")
 # Includes some code from pdfminer layout.py
-
-
-def _analyze_text_and_curves(text_lines, curves):
-    graph = GraphFromEdges()
-    for curve in curves:
-        graph.add_curve(curve)
-    forest = graph.build_forest()
-    extra_lines = set(text_lines)
-    best_tree, best_score = None, float("inf")
-    for n, c in enumerate(forest.components):
-        if len(c) > 4:
-            tree = forest.interpret_as_tree(n, text_lines)
-            score = tree.score
-            if score < best_score:
-                best_score = score
-                best_tree = tree
-            extra_lines = extra_lines.difference(tree.used_text)
-    if not best_tree:
-        return
-    pma = best_tree.attempt
-    best_legend, best_leg_score = None, float("inf")
-    for n, c in enumerate(forest.components):
-        if len(c) <= 4:
-            legend = forest.interpret_as_legend(n, pma.unused_text)
-            if (legend is not None) and (legend.score < best_leg_score):
-                best_leg_score = legend.score
-                best_legend = legend
-    edge_len_scaler = None
-    if best_legend:
-        edge_len_scaler = best_legend.edge_len_scaler
-    best_tree.clean_for_export()
-    print(best_tree.root.get_newick(edge_len_scaler))
 
 
 _skip_types = {LTImage}
@@ -89,29 +59,95 @@ def find_text_and_curves(
     )
 
 
-def filter_text_and_curves(text_lines, otherobjs):
-    ftl, fc = [], []
-    for line in text_lines:
-        ftl.append(line)
-    for obj in otherobjs:
-        if isinstance(obj, SafeCurve):
-            if len(obj.pts) > 5:
-                log.debug(f"ignoring curve with too many points: {obj}, {obj.__dict__}")
-                continue
-            elif len(obj.pts) < 2:
-                log.debug(f"ignoring curve with too few points: {obj}, {obj.__dict__}")
-                continue
-            fc.append(obj)
-            # print(f"curve from {obj.pts[0]} to {obj.pts[-1]}")
-        else:
-            print("Unknown", obj, obj.__dict__)
-    return ftl, fc
+_def_filter_shapes = {CurveShape.COMPLICATED, CurveShape.DOT}
+
+
+class ExtractionManager(object):
+    def __init__(self, unproc_page):
+        self.page_num = unproc_page.page_num
+        self.subpage_num = unproc_page.subpage_num
+        self.font_dict = dict(unproc_page.font_dict)
+        self._raw_text_lines = list(unproc_page.text_lines)
+        self._raw_nontext_objs = list(unproc_page.nontext_objs)
+        self.eertgif_id = 1 + unproc_page.eertgif_id
+        self._next_e_id = 1 + self.eertgif_id
+        self.id_lock = Lock()
+        self.container_bbox = unproc_page.container_bbox
+        self.text_lines = []
+        self.nontext_objs = []
+        self.trashed_text = []
+        self.trashed_nontext_objs = []
+        assert isinstance(self.container_bbox, tuple)
+        assert len(self.container_bbox) == 4
+        for el in self.container_bbox:
+            assert isinstance(el, float) or isinstance(el, int)
+        self.graph = None
+        self.forest = None
+        self.best_tree = None
+        self.best_legend = None
+        self._filter()
+
+    def get_new_id(self):
+        with self.id_lock:
+            i = self._next_e_id
+            self._next_e_id += 1
+        return i
+
+    def _filter(self):
+        for line in self._raw_text_lines:
+            self.text_lines.append(line)
+        for obj in self._raw_nontext_objs:
+            if obj.shape in _def_filter_shapes:
+                self.trashed_nontext_objs.append(obj)
+            else:
+                self.nontext_objs.append(obj)
+
+    def analyze(self):
+        self.graph = GraphFromEdges(self)
+        for curve in self.nontext_objs:
+            self.graph.add_curve(curve)
+        self.forest = self.graph.build_forest()
+        extra_lines = set(self.text_lines)
+        best_tree, best_score = None, float("inf")
+        for n, c in enumerate(self.forest.components):
+            if len(c) > 4:
+                tree = self.forest.interpret_as_tree(n, self.text_lines)
+                score = tree.score
+                if score < best_score:
+                    best_score = score
+                    best_tree = tree
+                extra_lines = extra_lines.difference(tree.used_text)
+
+        self.best_tree = best_tree
+        self.best_legend = None
+        if not best_tree:
+            return None
+        pma = best_tree.attempt
+        best_legend, best_leg_score = None, float("inf")
+        for n, c in enumerate(self.forest.components):
+            if len(c) <= 4:
+                legend = self.forest.interpret_as_legend(n, pma.unused_text)
+                if (legend is not None) and (legend.score < best_leg_score):
+                    best_leg_score = legend.score
+                    best_legend = legend
+        self.best_legend = best_legend
+        best_tree.clean_for_export()
+        return self.best_tree
+
+    @property
+    def edge_len_scaler(self):
+        if self.best_legend is not None:
+            return self.best_legend.edge_len_scaler
+        return None
 
 
 def analyze_figure(fig, params=None):
     unproc_page = find_text_and_curves(fig, params=params)[0]
-    ftl, fc = filter_text_and_curves(unproc_page.text_lines, unproc_page.nontext_objs)
-    return _analyze_text_and_curves(ftl, fc)
+    extract_mgr = ExtractionManager(unproc_page)
+    tree = extract_mgr.analyze()
+    if tree:
+        print(tree.root.get_newick(extract_mgr.edge_len_scaler))
+    return tree
 
 
 def my_extract_pages(pdf_file, page_numbers=None):
@@ -182,7 +218,6 @@ def get_regions_unprocessed(filepath, params=None, image_writer=None):
 
 
 def main(fp):
-    # params = LAParams()
     for page_tup in my_extract_pages(fp):
         page_layout = page_tup[0]
         figures = [el for el in page_layout if isinstance(el, LTFigure)]
@@ -190,20 +225,7 @@ def main(fp):
             for fig in figures:
                 analyze_figure(fig)
         else:
-            # try whole page as figure container
             analyze_figure(page_layout)
-        # for element in page_layout:
-        #     if isinstance(element, LTFigure):
-        #         analyze_figure(element)
-        #     else:
-        #         debug(f"Skipping non-figure {element}")
-        # for sub in element:
-        #
-        #     try:
-        #         for subsub in sub:
-        #             print(f"    subsub = {subsub}")
-        #     except TypeError:
-        #         pass
 
 
 if __name__ == "__main__":

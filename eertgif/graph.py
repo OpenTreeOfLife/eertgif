@@ -12,7 +12,10 @@ log = logging.getLogger(__name__)
 
 
 class Node(object):
-    def __init__(self, x: float = None, y: float = None, loc: Point = None):
+    def __init__(
+        self, x: float = None, y: float = None, loc: Point = None, id_gen=None
+    ):
+        self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
         # debug(f"created node at {(x, y)}")
         if loc is None:
             assert x is not None
@@ -75,8 +78,9 @@ class Node(object):
 
 
 class Edge(object):
-    def __init__(self, curve: SafeCurve, nd1: Node, nd2: Node):
+    def __init__(self, curve: SafeCurve, nd1: Node, nd2: Node, id_gen):
         self.curve, self.nd1, self.nd2 = curve, nd1, nd2
+        self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
         nd1.add_edge(self)
         nd2.add_edge(self)
 
@@ -101,7 +105,9 @@ class Edge(object):
 
 
 class PlanarContainer(object):
-    def __init__(self):
+    def __init__(self, id_gen):
+        self.id_gen = id_gen
+        self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
         self.by_x = PointMap()
         self._all_nodes = []
 
@@ -117,7 +123,7 @@ class PlanarContainer(object):
         min_el = None
         for row_x, row_map in rows:
             for cell_y, el in row_map.items():
-                dist = calc_dist((ptx, pty), (row_x, cell_y.x))
+                dist = calc_dist((ptx, pty), (row_x, cell_y))
                 if dist < min_diff:
                     min_diff = dist
                     min_el = el
@@ -129,12 +135,6 @@ class PlanarContainer(object):
         if row_map is None:
             return None
         return row_map.get(pty)
-        # for el in row:
-        #     if el.y == pty:
-        #         return el
-        #     if el.y > pty:
-        #         break
-        # return None
 
     def find_row_exact(self, x: float) -> Optional[PointMap]:
         return self.by_x.get(x)
@@ -145,7 +145,7 @@ class PlanarContainer(object):
             row_x, row_map = row_tup
             dist = abs(row_x - x)
             if dist < tol:
-                by_dist.append((dist, n, (row_x.x, row_map)))
+                by_dist.append((dist, n, (row_x, row_map)))
         by_dist.sort()
         return [i[-1] for i in by_dist]
 
@@ -153,46 +153,25 @@ class PlanarContainer(object):
         ptx = pt[0]
         pty = pt[1]
         row_map = self.by_x.setdefault(ptx, PointMap())
-        # dest_row = None
-        # bef_ind = None
-        # for n, row in enumerate(self.by_x):
-        #     if row[0].x == ptx:
-        #         dest_row = row
-        #         break
-        #     if row[0].x > ptx:
-        #         bef_ind = n
-        #         break
-        nd = Node(ptx, pty)
+        nd = Node(ptx, pty, id_gen=self.id_gen)
         self._all_nodes.append(nd)
         row_map.setdefault(pty, nd)
-        # if dest_row:
-        #     bef_y_ind = None
-        #     for n, el in enumerate(dest_row):
-        #         if el.y >= pty:
-        #             bef_y_ind = n
-        #             break
-        #     if bef_y_ind is not None:
-        #         dest_row.insert(bef_y_ind, nd)
-        #     else:
-        #         dest_row.append(nd)
-        # elif bef_ind is not None:
-        #     self.by_x.insert(bef_ind, [nd])
-        # else:
-        #     self.by_x.append([nd])
         return nd
 
 
 class GraphFromEdges(object):
-    def __init__(self):
-        self.nodes = PlanarContainer()
+    def __init__(self, id_gen):
+        self.nodes = PlanarContainer(id_gen)
         self.edges = set()
         self.tol = 0.01
+        self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
+        self.id_gen = id_gen
 
     def add_curve(self, curve: SafeCurve) -> Edge:
         pt1, pt2 = curve.pts[0], curve.pts[-1]
         nd1 = self.find_or_insert_node(pt1)[0]
         nd2 = self.find_or_insert_node(pt2)[0]
-        edge = Edge(curve, nd1, nd2)
+        edge = Edge(curve, nd1, nd2, id_gen=self.id_gen)
         self.edges.add(edge)
         return edge
 
@@ -211,7 +190,7 @@ class GraphFromEdges(object):
         return nd, True, True
 
     def build_forest(self) -> Forest:
-        forest = Forest(self)
+        forest = Forest(self, id_gen=self.id_gen)
         included = set()
         for nd in self.nodes.iter_nodes():
             if nd in included:
@@ -225,11 +204,13 @@ class GraphFromEdges(object):
 
 
 class Forest(object):
-    def __init__(self, graph: GraphFromEdges):
+    def __init__(self, graph: GraphFromEdges, id_gen):
         self.components = []
         self.graph = graph
         self.trees = []
         self.legends = []
+        self.id_gen = id_gen
+        self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
 
     def interpret_as_legend(self, idx: int, text_lines: List[SafeTextLine]):
         from .phylo import PhyloLegend
@@ -241,7 +222,12 @@ class Forest(object):
         if t is not None:
             return t
         try:
-            t = PhyloLegend(connected_nodes=comp, forest=self, text_lines=text_lines)
+            t = PhyloLegend(
+                connected_nodes=comp,
+                forest=self,
+                text_lines=text_lines,
+                id_gen=self.id_gen,
+            )
             self.legends[idx] = t
         except RuntimeError:
             pass
@@ -256,6 +242,8 @@ class Forest(object):
         t = self.trees[idx]
         if t is not None:
             return t
-        t = PhyloTree(connected_nodes=comp, forest=self, text_lines=text_lines)
+        t = PhyloTree(
+            connected_nodes=comp, forest=self, text_lines=text_lines, id_gen=self.id_gen
+        )
         self.trees[idx] = t
         return t

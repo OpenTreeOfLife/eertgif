@@ -29,10 +29,31 @@ class Direction(IntEnum):
     NORTHWEST = 0x09
 
 
+class CurveShape(IntEnum):
+    LINE = 0
+    CORNER_LL = 1  # └
+    CORNER_UL = 2  # ┌
+    CORNER_UR = 3  # ┐
+    CORNER_LR = 4  #  ┘
+    LINE_LIKE = 5
+    COMPLICATED = 6
+    DOT = 7
+
+
 class AxisDir(IntEnum):
     UNKNOWN = 0
     HORIZONTAL = 1
     VERTICAL = 2
+
+
+CARDINAL = (Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST)
+
+
+class Penalty(Enum):
+    LABEL_GAP_MEAN = 0
+    LABEL_GAP_STD_DEV = 1
+    UNMATCHED_LABELS = 2
+    WRONG_DIR_TO_PAR = 3
 
 
 def rotate_cw(tip_dir: Direction) -> Direction:
@@ -48,16 +69,6 @@ def rotate_cw(tip_dir: Direction) -> Direction:
         Direction.NORTHWEST: Direction.NORTHEAST,
     }
     return deg_90[tip_dir]
-
-
-CARDINAL = (Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST)
-
-
-class Penalty(Enum):
-    LABEL_GAP_MEAN = 0
-    LABEL_GAP_STD_DEV = 1
-    UNMATCHED_LABELS = 2
-    WRONG_DIR_TO_PAR = 3
 
 
 def midpoint(rect: Rect):
