@@ -71,6 +71,9 @@ def to_svg(out, obj_container=None, styling=None):
 def text_as_text_el(out, text, xfn, yfn, styling):
     midheight = (yfn(text.y1) + yfn(text.y0)) / 2
     atts = [f'x="{xfn(text.x0)}"', f'y="{midheight}"']
+    eertgif_id = getattr(text, "eertgif_id", None)
+    if eertgif_id is not None:
+        atts.append(f'eeertgif_id="{eertgif_id}"')
     length = abs(xfn(text.x1) - xfn(text.x0))
     atts.append(f'textLength="{length}"')
     atts.append(f'textAdjust="spacingAndGlyphs"')
@@ -131,6 +134,9 @@ def curve_as_path(out, curve, xfn, yfn, styling):
     full_pt_str = " L".join(full_coord_pairs)
     simp_pt_str = " L".join(simp_coord_pairs)
     atts = []
+    eertgif_id = getattr(curve, "eertgif_id", None)
+    if eertgif_id is not None:
+        atts.append(f'eeertgif_id="{eertgif_id}"')
 
     # if curve.stroke or plot_as_diag:
     if curve.linewidth:
