@@ -92,6 +92,12 @@ class ExtractionManager(object):
         self._filter()
         self._update_by_id_map()
 
+    def iter_nodes(self):
+        g = self.graph
+        if g is None:
+            return iter([])
+        return g.iter_nodes()
+
     def as_svg_str(self):
         from .to_svg import get_svg_str
 

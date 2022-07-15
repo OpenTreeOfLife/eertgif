@@ -85,6 +85,10 @@ class Edge(object):
         nd1.add_edge(self)
         nd2.add_edge(self)
 
+    @property
+    def component_idx(self):
+        return self.nd1.component_idx
+
     def __str__(self) -> str:
         return f"Edge({self.nd1} <==> {self.nd2})"
 
@@ -167,6 +171,9 @@ class GraphFromEdges(object):
         self.tol = node_merge_tol
         self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
         self.id_gen = id_gen
+
+    def iter_nodes(self):
+        return self.nodes.iter_nodes()
 
     def add_curve(self, curve: SafeCurve) -> Edge:
         pt1, pt2 = curve.pts[0], curve.pts[-1]

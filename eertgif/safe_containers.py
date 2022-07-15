@@ -6,7 +6,7 @@ from enum import IntEnum
 from typing import Tuple, Optional
 from pdfminer.utils import Point
 from pdfminer.layout import LTChar, LTTextLineHorizontal, LTTextLineVertical, LTAnno
-from .util import AxisDir, DIM_TOL, bbox_to_corners, calc_dist, CurveShape
+from .util import AxisDir, DIM_TOL, bbox_to_corners, calc_dist, CurveShape, DisplayMode
 from .point_map import PointMap
 
 log = logging.getLogger(__name__)

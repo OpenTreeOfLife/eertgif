@@ -5,13 +5,53 @@ import html
 import logging
 
 from io import StringIO
+from .util import DisplayMode
 
 log = logging.getLogger("eertgif.to_svg")
 
 
+# from https://gist.github.com/ollieglass/f6ddd781eeae1d24e391265432297538
+kelly_colors = [
+    "F2F3F4",
+    "222222",
+    "F3C300",
+    "875692",
+    "F38400",
+    "A1CAF1",
+    "BE0032",
+    "C2B280",
+    "848482",
+    "008856",
+    "E68FAC",
+    "0067A5",
+    "F99379",
+    "604E97",
+    "F6A600",
+    "B3446C",
+    "DCD300",
+    "882D17",
+    "8DB600",
+    "654522",
+    "E25822",
+    "2B3D26",
+]
+non_white_kelly_colors = kelly_colors[1:]
+
+
 class SVGStyling:
+    color_list = [f"#{i}" for i in non_white_kelly_colors]
+
     def __init__(self):
-        pass
+        self.comp_idx2color = {}
+
+    def color_for_el(self, el=None):
+        def_color = "grey"
+        def_highlight_color = "red"
+        highlight_color = def_highlight_color
+        if el is None:
+            return def_color, highlight_color
+        color = self.comp_idx2color.get(el.component_idx, def_color)
+        return color, highlight_color
 
 
 # treat as immutable
@@ -44,7 +84,6 @@ def get_svg_str(obj_container=None, styling=None):
 def to_svg(out, obj_container=None, styling=None):
     from .safe_containers import SafeCurve
 
-    styling = styling if styling is not None else _def_style
     assert obj_container is not None
     cbb = obj_container.container_bbox
     height = cbb[3] - cbb[1]
@@ -57,12 +96,43 @@ def to_svg(out, obj_container=None, styling=None):
 """
     )
     # log.debug(f"obj_container.nontext_objs = {obj_container.nontext_objs}")
-    for n, o in enumerate(obj_container.nontext_objs):
-        if isinstance(o, SafeCurve):
-            curve_as_path(out, o, xfn, yfn, styling=styling)
-        else:
-            log.debug(f"Skipping {o} in SVG export...\n")
-    # log.debug(f"obj_container.text_lines = {obj_container.nontext_objs}")
+    if obj_container.display_mode == DisplayMode.CURVES_AND_TEXT:
+        styling = styling if styling is not None else _def_style
+        for n, o in enumerate(obj_container.nontext_objs):
+            if isinstance(o, SafeCurve):
+                curve_as_path(out, o, xfn, yfn, styling=styling)
+            else:
+                log.debug(f"Skipping {o} in SVG export...\n")
+    else:
+        if styling is None:
+            styling = SVGStyling()
+        edge_set = set()
+        if styling is None:
+            styling = SVGStyling()
+        by_comp_idx = {}
+        for nd in obj_container.iter_nodes():
+            by_comp_idx.setdefault(nd.component_idx, []).append(nd)
+            for edge in nd.edges:
+                if edge not in edge_set:
+                    edge_set.add(edge)
+
+        to_sort = []
+        for comp_idx, nd_list in by_comp_idx.items():
+            min_id = min([nd.eertgif_id for nd in nd_list])
+            to_sort.append((len(nd_list), min_id, comp_idx, nd_list))
+        styling.comp_idx2color = {}
+        to_sort.sort(reverse=True)
+        for n, tup in enumerate(to_sort):
+            comp_idx, nd_list = tup[-2:]
+            col_idx = n if n < len(styling.color_list) else -1
+            color = styling.color_list[col_idx]
+            styling.comp_idx2color[comp_idx] = color
+            for nd in nd_list:
+                node_as_circle(out, nd, xfn, yfn, styling=styling)
+        for edge in edge_set:
+            curve_as_path(out, edge.curve, xfn, yfn, styling=styling, edge=edge)
+
+    log.debug(f"obj_container.text_lines = {obj_container.nontext_objs}")
     for n, text in enumerate(obj_container.text_lines):
         text_as_text_el(out, text, xfn, yfn, styling)
     out.write("</svg>")
@@ -122,7 +192,24 @@ def _append_atts_for_font(font, att_list):
     return att_list
 
 
-def curve_as_path(out, curve, xfn, yfn, styling):
+def node_as_circle(out, nd, xfn, yfn, styling):
+    styling = styling if styling is not None else _def_style
+    color, highlight_color = styling.color_for_el(nd)
+    atts = [
+        f'cx="{xfn(nd.x)}" cy="{yfn(nd.y)}" r="2" ',
+        # f'stroke="black"'
+        f'stroke="none" fill="{color}"',
+        f"onmouseover=\";evt.target.setAttribute('fill', '{highlight_color}');\"",
+        f"onmouseout=\";evt.target.setAttribute('fill', '{color}');\"",
+    ]
+    eertgif_id = getattr(nd, "eertgif_id", None)
+    if eertgif_id is not None:
+        atts.append(f'eeertgif_id="{eertgif_id}"')
+    s = f' <circle {" ".join(atts)} />\n'
+    out.write(s)
+
+
+def curve_as_path(out, curve, xfn, yfn, styling=None, edge=None):
     styling = styling if styling is not None else _def_style
     plot_as_diag = curve.eff_diagonal is not None
     full_coord_pairs = [f"{xfn(i[0])} {yfn(i[1])}" for i in curve.pts]
@@ -134,14 +221,16 @@ def curve_as_path(out, curve, xfn, yfn, styling):
     full_pt_str = " L".join(full_coord_pairs)
     simp_pt_str = " L".join(simp_coord_pairs)
     atts = []
-    eertgif_id = getattr(curve, "eertgif_id", None)
+    id_owner = curve if edge is None else edge
+    eertgif_id = getattr(id_owner, "eertgif_id", None)
     if eertgif_id is not None:
         atts.append(f'eeertgif_id="{eertgif_id}"')
 
+    color, highlight_color = styling.color_for_el(edge)
     # if curve.stroke or plot_as_diag:
     if curve.linewidth:
         atts.append(f'stroke-width="{curve.linewidth}"')
-    atts.append(f'stroke="grey"')  # @TODO!
+    atts.append(f'stroke="{color}"')  # @TODO!
     # else:
     #    atts.append(f'stroke="none"')
     # log.debug(f"curve.fill = {curve.fill} curve.non_stroking_color = {curve.non_stroking_color}")
@@ -149,10 +238,10 @@ def curve_as_path(out, curve, xfn, yfn, styling):
     if curve.fill and not plot_as_diag:
         atts.append(f'fill="grey"')
         atts.append(
-            "onmouseover=\"evt.target.setAttribute('stroke', 'red');evt.target.setAttribute('fill', 'red');\""
+            f"onmouseover=\"evt.target.setAttribute('stroke', '{highlight_color}');evt.target.setAttribute('fill', '{highlight_color}');\""
         )
         atts.append(
-            "onmouseout=\"evt.target.setAttribute('stroke', 'grey');evt.target.setAttribute('fill', 'grey');\""
+            f"onmouseout=\"evt.target.setAttribute('stroke', '{color}');evt.target.setAttribute('fill', '{color}');\""
         )
         if plot_as_diag:
             pref = f'd="M{simp_pt_str} Z" alt_d="M{full_pt_str} Z" '
@@ -161,8 +250,10 @@ def curve_as_path(out, curve, xfn, yfn, styling):
         s = f' <path {pref} {" ".join(atts)} />\n'
     else:
         atts.append('fill="none"')
-        atts.append("onmouseover=\"evt.target.setAttribute('stroke', 'red');\"")
-        atts.append("onmouseout=\"evt.target.setAttribute('stroke', 'grey');\"")
+        atts.append(
+            f"onmouseover=\"evt.target.setAttribute('stroke', '{highlight_color}');\""
+        )
+        atts.append(f"onmouseout=\"evt.target.setAttribute('stroke', '{color}');\"")
         if plot_as_diag:
             pref = f'd="M{simp_pt_str}" alt_d="M{full_pt_str}" '
         else:
