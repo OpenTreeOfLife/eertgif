@@ -104,6 +104,8 @@ def to_svg(out, obj_container=None, styling=None):
             else:
                 log.debug(f"Skipping {o} in SVG export...\n")
     else:
+        log.debug(f"# components = {len(obj_container.forest.components)}")
+
         if styling is None:
             styling = SVGStyling()
         edge_set = set()
@@ -120,6 +122,7 @@ def to_svg(out, obj_container=None, styling=None):
         for comp_idx, nd_list in by_comp_idx.items():
             min_id = min([nd.eertgif_id for nd in nd_list])
             to_sort.append((len(nd_list), min_id, comp_idx, nd_list))
+
         styling.comp_idx2color = {}
         to_sort.sort(reverse=True)
         for n, tup in enumerate(to_sort):
@@ -132,7 +135,7 @@ def to_svg(out, obj_container=None, styling=None):
         for edge in edge_set:
             curve_as_path(out, edge.curve, xfn, yfn, styling=styling, edge=edge)
 
-    log.debug(f"obj_container.text_lines = {obj_container.nontext_objs}")
+    # log.debug(f"obj_container.text_lines = {obj_container.nontext_objs}")
     for n, text in enumerate(obj_container.text_lines):
         text_as_text_el(out, text, xfn, yfn, styling)
     out.write("</svg>")
@@ -195,16 +198,21 @@ def _append_atts_for_font(font, att_list):
 def node_as_circle(out, nd, xfn, yfn, styling):
     styling = styling if styling is not None else _def_style
     color, highlight_color = styling.color_for_el(nd)
+    edge_refs = ",".join([str(i.eertgif_id) for i in nd.edges])
+    log.debug(f"edge_refs = {edge_refs}")
     atts = [
         f'cx="{xfn(nd.x)}" cy="{yfn(nd.y)}" r="2" ',
         # f'stroke="black"'
-        f'stroke="none" fill="{color}"',
-        f"onmouseover=\";evt.target.setAttribute('fill', '{highlight_color}');\"",
-        f"onmouseout=\";evt.target.setAttribute('fill', '{color}');\"",
+        f'stroke="none" fill="{color}" nhcolor="{color}"',
+        f'onmouseover="mouseOverNode(evt.target);"',
+        f'onmouseout="mouseOutNode(evt.target);"',
     ]
+    if edge_refs:
+        atts.append(f'edges="{edge_refs}"')
+
     eertgif_id = getattr(nd, "eertgif_id", None)
     if eertgif_id is not None:
-        atts.append(f'eeertgif_id="{eertgif_id}"')
+        atts.append(f'id="{eertgif_id}"')
     s = f' <circle {" ".join(atts)} />\n'
     out.write(s)
 
@@ -224,7 +232,7 @@ def curve_as_path(out, curve, xfn, yfn, styling=None, edge=None):
     id_owner = curve if edge is None else edge
     eertgif_id = getattr(id_owner, "eertgif_id", None)
     if eertgif_id is not None:
-        atts.append(f'eeertgif_id="{eertgif_id}"')
+        atts.append(f'id="{eertgif_id}"')
 
     color, highlight_color = styling.color_for_el(edge)
     # if curve.stroke or plot_as_diag:

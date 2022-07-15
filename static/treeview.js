@@ -48,6 +48,25 @@ function toggleCurveSimplify() {
  });
 }
 
+function mouseOverNode(target) {
+	target.setAttribute("fill", "red");
+	var edge_refs = target.getAttribute("edges");
+	if (!edge_refs || edge_refs === "") {
+		return;
+	}
+	var edge_list = edge_refs.split(",")
+	var er;
+	let i=0
+	for (; i <edge_list.length; i++) {
+		er = "#" + edge_list[i].trim();
+		$( er ).attr("stroke", "red");
+	}
+}
+
+function mouseOutNode(target) {
+	target.setAttribute("fill", target.getAttribute("nhcolor"));
+}
+
 function detectComponents() {
 	var val = $('#node_tol_input').val();
 	var valf = Number(val);

@@ -229,7 +229,7 @@ class EertgifView:
             if action and action == ExtractActions.DETECT_COMPONENT:
                 em.detect_components(node_merge_tol=node_merge_tol)
                 return HTTPFound(location=f"/extract/{tag}?page={page_id}")
-
+        log.debug(f"em.display_mode = {repr(em.display_mode)}")
         svg = em.as_svg_str()
         d = {
             "tag": tag,
