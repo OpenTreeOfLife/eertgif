@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>eertgif: ${tag} extract ${region_id}</title>
+    <link rel="stylesheet" type="text/css" href="/static/eertgif.css" />
+</head>
+<body>
+<script src="/static/jquery-3.6.0.min.js"></script>
+
+<h2>Guiding extraction of tree from region ${region_id} of study "${tag}"</h2>
+
+<hr />
+
+<div tal:condition="status != 'no trees'">
+    <script src="/static/treeview.js"></script>
+    <div id="tree-button-div"><span class="button" onclick="toggleCurveSimplify()"><span>Toggle curve simplification</span></span></div>
+
+    <div tal:condition="svg">
+        <div id="treeholder" tal:content="structure svg"></div>
+    </div>
+</div>
+<div tal:condition="status == 'no trees'">
+    <p style="font-size:160%;">This regions has been flagged as lacking trees</p>
+</div>
+
+<p>When done with this tree you can go back to <a href="/edit/${tag}?page=${region_id}">view mode</a>.</p>
+<hr />
+
+
+</body>
+</html>
