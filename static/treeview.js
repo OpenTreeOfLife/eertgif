@@ -51,7 +51,7 @@ function toggleCurveSimplify() {
 function detectComponents() {
 	var val = $('#node_tol_input').val();
 	var valf = Number(val);
-	if (isNaN(valf)) {
+	if (val === "" || isNaN(valf)) {
 		alert("node tolerance for component detection must be a number");
 		return;
 	}

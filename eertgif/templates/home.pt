@@ -18,7 +18,7 @@
 <h3>Previously uploaded</h3>
 <table>
   <tr tal:repeat="row tags">
-    <td><a href="edit/${row}">${row}</a></td>
+    <td><a href="/view/${row}">${row}</a></td>
   </tr>
 </table>
 </body>

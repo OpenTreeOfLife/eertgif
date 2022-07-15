@@ -96,6 +96,12 @@ def scan_for_uploads(uploads_dir):
     return u, bt
 
 
+class ExtractActions:
+    DETECT_COMPONENT = "detect_components"
+
+    all = frozenset([DETECT_COMPONENT])
+
+
 class EertgifView:
     def __init__(self, request):
         log.debug(f"{request.url} called")
@@ -174,6 +180,24 @@ class EertgifView:
     @view_config(route_name="eertgif:extract", renderer="templates/extract.pt")
     def extract_view(self):
         tag, page_id = self._get_tag_and_mandatory_page_id()
+        action = self.request.params.get("action")
+        node_merge_tol = None
+        if action is not None:
+            try:
+                assert action in ExtractActions.all
+            except:
+                return HTTPBadRequest(f'action "{action}" is not known.')
+            if action == ExtractActions.DETECT_COMPONENT:
+                node_merge_tol = self.request.params.get("node_merge_tol")
+                if node_merge_tol is not None:
+                    try:
+                        node_merge_tol = float(node_merge_tol)
+                        assert node_merge_tol >= 0.0
+                    except:
+                        return HTTPBadRequest(
+                            f"node_merge_tol must be a positive number"
+                        )
+
         study_lock, top_cont = self._get_lock_and_top(tag)
         with study_lock:
             pages = list(top_cont.page_ids)
@@ -201,6 +225,11 @@ class EertgifView:
             else:
                 assert isinstance(obj_for_region, ExtractionManager)
                 em = obj_for_region
+
+            if action and action == ExtractActions.DETECT_COMPONENT:
+                em.detect_components(node_merge_tol=node_merge_tol)
+                return HTTPFound(location=f"/extract/{tag}?page={page_id}")
+
         svg = em.as_svg_str()
         d = {
             "tag": tag,
