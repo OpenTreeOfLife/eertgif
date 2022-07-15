@@ -48,24 +48,64 @@ function toggleCurveSimplify() {
  });
 }
 
-function mouseOverNode(target) {
-	target.setAttribute("fill", "red");
-	var edge_refs = target.getAttribute("edges");
-	if (!edge_refs || edge_refs === "") {
+function setColorsForSameComp(comp_id, stroke_color, fill_color) {
+	var el_of_same_comp = el_by_comp_id[comp_id]
+	if (typeof el_of_same_comp === 'undefined') {
 		return;
 	}
-	var edge_list = edge_refs.split(",")
-	var er;
-	let i=0
-	for (; i <edge_list.length; i++) {
-		er = "#" + edge_list[i].trim();
-		$( er ).attr("stroke", "red");
+	var i = 0;
+	var el;
+	for (; i < el_of_same_comp.length; i++) {
+		el = el_of_same_comp[i];
+		var nhf = el.getAttribute("nhfcolor");
+		if (nhf !== "none") {
+			if (fill_color === "none") {
+				el.setAttribute("fill", nhf)
+			} else {
+				el.setAttribute("fill", fill_color);
+			}
+		}
+		var nhs = el.getAttribute("nhscolor");
+		if (nhs !== "none") {
+			if (stroke_color === "none") {
+				el.setAttribute("stroke", nhs)
+			} else {
+				el.setAttribute("stroke", stroke_color);
+			}
+		}
 	}
 }
 
-function mouseOutNode(target) {
-	target.setAttribute("fill", target.getAttribute("nhcolor"));
+function mouseOverNode(target) {
+	var comp_id = target.getAttribute("component");
+	if (typeof comp_id === 'undefined') {
+		return;
+	}
+	setColorsForSameComp(comp_id, "red", "red");
+	// var edge_refs = target.getAttribute("edges");
+	// if (!edge_refs || edge_refs === "") {
+	// 	return;
+	// }
+	// var edge_list = edge_refs.split(",")
+	// var er;
+	// let i=0
+	// for (; i <edge_list.length; i++) {
+	// 	er = "#" + edge_list[i].trim();
+	// 	$( er ).attr("stroke", "red");
+	// }
 }
+
+var mouseOverEdge = mouseOverNode;
+
+function mouseOutNode(target) {
+	var comp_id = target.getAttribute("component");
+	if (typeof comp_id === 'undefined') {
+		return;
+	}
+	setColorsForSameComp(comp_id, target.getAttribute("nhscolor"), target.getAttribute("nhfcolor"));
+}
+
+var mouseOutEdge = mouseOutNode;
 
 function detectComponents() {
 	var val = $('#node_tol_input').val();
@@ -80,7 +120,23 @@ function detectComponents() {
 	reloadPageWithParamList(paramList);	
 }
 
+var el_by_comp_id = {};
+function add_to_map() {
+	var comp_id = $( this ).attr("component");
+	if (typeof comp_id === 'undefined') {
+		return;
+	}
+	var x = el_by_comp_id[comp_id];
+	if (x === undefined) {
+		el_by_comp_id[comp_id] = [this];
+	} else {
+		x[x.length] = this;
+	}
+}
+
 $(document).ready(function() {
-	
+
+	$("circle").each(add_to_map);
+	$("path").each(add_to_map);
 })
 ;

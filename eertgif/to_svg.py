@@ -91,6 +91,7 @@ def to_svg(out, obj_container=None, styling=None):
     xfn = lambda x: x - cbb[0]
     yfn = lambda y: cbb[3] - y  # pdf y=0 is bottom, but svg is top
 
+    min_dim = min(height, width)
     out.write(
         f"""<svg viewBox="0 0 {width} {height}" > 
 """
@@ -108,6 +109,8 @@ def to_svg(out, obj_container=None, styling=None):
 
         if styling is None:
             styling = SVGStyling()
+        styling.min_fig_dim = min_dim
+        styling.circle_size = max(min_dim / 500, 2)
         edge_set = set()
         if styling is None:
             styling = SVGStyling()
@@ -201,11 +204,13 @@ def node_as_circle(out, nd, xfn, yfn, styling):
     edge_refs = ",".join([str(i.eertgif_id) for i in nd.edges])
     log.debug(f"edge_refs = {edge_refs}")
     atts = [
-        f'cx="{xfn(nd.x)}" cy="{yfn(nd.y)}" r="2" ',
+        f'cx="{xfn(nd.x)}" cy="{yfn(nd.y)}" ',
+        f'r="{styling.circle_size}" ',
         # f'stroke="black"'
-        f'stroke="none" fill="{color}" nhcolor="{color}"',
-        f'onmouseover="mouseOverNode(evt.target);"',
-        f'onmouseout="mouseOutNode(evt.target);"',
+        f'stroke="none" fill="{color}" nhscolor="none" nhfcolor="{color}"',
+        'onmouseover="mouseOverNode(evt.target);"',
+        'onmouseout="mouseOutNode(evt.target);"',
+        f'component="{nd.component_idx}"',
     ]
     if edge_refs:
         atts.append(f'edges="{edge_refs}"')
@@ -233,6 +238,8 @@ def curve_as_path(out, curve, xfn, yfn, styling=None, edge=None):
     eertgif_id = getattr(id_owner, "eertgif_id", None)
     if eertgif_id is not None:
         atts.append(f'id="{eertgif_id}"')
+    if edge:
+        atts.append(f'component="{edge.component_idx}"')
 
     color, highlight_color = styling.color_for_el(edge)
     # if curve.stroke or plot_as_diag:
@@ -243,25 +250,18 @@ def curve_as_path(out, curve, xfn, yfn, styling=None, edge=None):
     #    atts.append(f'stroke="none"')
     # log.debug(f"curve.fill = {curve.fill} curve.non_stroking_color = {curve.non_stroking_color}")
     filling = curve.non_stroking_color and curve.non_stroking_color != (0, 0, 0)
+    atts.append('onmouseover="mouseOverEdge(evt.target);"')
+    atts.append('onmouseout="mouseOutEdge(evt.target);"')
+    atts.extend([f'stroke="{color}"', f'nhscolor="{color}"'])
     if curve.fill and not plot_as_diag:
-        atts.append(f'fill="grey"')
-        atts.append(
-            f"onmouseover=\"evt.target.setAttribute('stroke', '{highlight_color}');evt.target.setAttribute('fill', '{highlight_color}');\""
-        )
-        atts.append(
-            f"onmouseout=\"evt.target.setAttribute('stroke', '{color}');evt.target.setAttribute('fill', '{color}');\""
-        )
+        atts.extend(['fill="{color}"', 'nhfcolor="{color}"'])
         if plot_as_diag:
             pref = f'd="M{simp_pt_str} Z" alt_d="M{full_pt_str} Z" '
         else:
             pref = f'd="M{simp_pt_str} Z" '
         s = f' <path {pref} {" ".join(atts)} />\n'
     else:
-        atts.append('fill="none"')
-        atts.append(
-            f"onmouseover=\"evt.target.setAttribute('stroke', '{highlight_color}');\""
-        )
-        atts.append(f"onmouseout=\"evt.target.setAttribute('stroke', '{color}');\"")
+        atts.extend(['fill="none"', 'nhfcolor="none"'])
         if plot_as_diag:
             pref = f'd="M{simp_pt_str}" alt_d="M{full_pt_str}" '
         else:
