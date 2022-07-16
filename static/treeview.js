@@ -1,5 +1,8 @@
 
 
+var el_by_comp_id = {};
+var is_rect_shape = true;
+
 /////////////////////////////////////////////////////////////////
 // following 3 functions modified from https://stackoverflow.com/posts/487049/revisions
 function getSearchParamList() {
@@ -120,7 +123,6 @@ function detectComponents() {
 	reloadPageWithParamList(paramList);	
 }
 
-var el_by_comp_id = {};
 function add_to_map() {
 	var comp_id = $( this ).attr("component");
 	if (typeof comp_id === 'undefined') {
@@ -134,8 +136,46 @@ function add_to_map() {
 	}
 }
 
-$(document).ready(function() {
+function toggleTreeShape() {
+	var rw = $('#rect_tree_shape_icon').attr("width");
+	var dw= $('#diag_tree_shape_icon').attr("width");
+	var rwn = Number(rw);
+	var dwn= Number(dw);
+	$('#rect_tree_shape_icon').attr("width", dw);
+	$('#diag_tree_shape_icon').attr("width", rw);
+	is_rect_shape = rw > dw;
+}
 
+
+// modified from https://stackoverflow.com/questions/20061774/rotate-an-image-in-image-source-in-html
+function rotate_img_90cw(obj) {
+    var deg = obj.data('rotate') || 0;
+    deg += 90;
+    if (deg >= 360) {
+    	deg -= 360;
+    }
+    obj.data('rotate', deg);
+    var rotate = 'rotate(' + deg +  'deg)';
+    obj.css({ 
+        '-webkit-transform': rotate,
+        '-moz-transform': rotate,
+        '-o-transform': rotate,
+        '-ms-transform': rotate,
+        'transform': rotate 
+    });
+}
+
+function rotateOrientationClicked() {
+	 rotate_img_90cw($('#rect_tree_shape_icon'));
+	 rotate_img_90cw($('#diag_tree_shape_icon'));
+}
+
+$(document).ready(function() {
+	if (Number($('#rect_tree_shape_icon').attr("width")) > 0) {
+		is_rect_shape = true;
+	} else {
+		is_rect_shape = false;
+	}
 	$("circle").each(add_to_map);
 	$("path").each(add_to_map);
 })

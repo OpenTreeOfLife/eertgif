@@ -13,10 +13,13 @@
 
 <div tal:condition="status != 'no trees'">
     <script src="/static/treeview.js"></script>
-    <div id="tree-button-div">
+    <div id="tree_button_div">
         <span class="button" onclick="toggleCurveSimplify()"><span>Toggle curve simplification</span></span>
         <br />
-        <input type="text" id="node_tol_input" name="node_tol" value="${node_merge_tol}" /><span class="button" onclick="detectComponents()"><span>detect components</span></span>
+        <hr />
+        <span class="button" onclick="toggleTreeShape()"><img id="rect_tree_shape_icon" width="20" height="20" src="/static/rect-tree.png" alt="rectangular tree shape icon" /><img id="diag_tree_shape_icon" width="0" height="20" src="/static/diag-tree.png" alt="diagnoal tree shape icon" /></span>&nbsp;
+        <span class="button" onclick="rotateOrientationClicked()"><img id="rotate_cw_icon" width="20" src="/static/rotate.png" alt="rotate orientation 90 degrees icon" /></span> 
+        <label for="node_tol_input" >Node merge tol.</label><input type="text" id="node_tol_input" name="node_tol" value="${node_merge_tol}" />&nbsp&nbsp<span class="button" onclick="detectComponents()" display="none"><span>detect components</span></span>
     </div>
 
     <div tal:condition="svg">
