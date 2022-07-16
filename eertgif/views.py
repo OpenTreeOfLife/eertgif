@@ -143,6 +143,14 @@ class EertgifView:
                     shared_list[-1] = top_cont
         return study_lock, top_cont
 
+    def _repickle(self, page_id, obj, top_cont):
+        orig_pickle_path = os.path.join(top_cont.par_dir, f"{page_id}.pickle")
+        empout, tmp_path = tempfile.mkstemp(dir=top_cont.par_dir)
+        with open(tmp_path, "wb") as empout:
+            obj.pickle(empout)
+        with _upload_lock:
+            os.rename(tmp_path, orig_pickle_path)
+
     @view_config(route_name="eertgif:home", renderer="templates/home.pt")
     def home_view(self):
         u = self._uploads()[0]
@@ -197,7 +205,6 @@ class EertgifView:
                         return HTTPBadRequest(
                             f"node_merge_tol must be a positive number"
                         )
-
         study_lock, top_cont = self._get_lock_and_top(tag)
         with study_lock:
             pages = list(top_cont.page_ids)
@@ -222,12 +229,31 @@ class EertgifView:
             if isinstance(obj_for_region, UnprocessedRegion):
                 em = ExtractionManager(obj_for_region)
                 top_cont.set_object_for_region(idx, em)
+                unproc_pickle_path = os.path.join(
+                    top_cont.par_dir, f"unproc{page_id}.pickle"
+                )
+                if not os.path.isfile(unproc_pickle_path):
+                    orig_pickle_path = os.path.join(
+                        top_cont.par_dir, f"{page_id}.pickle"
+                    )
+                    empout, tmp_path = tempfile.mkstemp(dir=top_cont.par_dir)
+                    with open(tmp_path, "wb") as empout:
+                        em.pickle(empout)
+
+                    with _upload_lock:
+                        os.rename(orig_pickle_path, unproc_pickle_path)
+                        os.rename(tmp_path, orig_pickle_path)
+                        top_cont.blob.setdefault("to_clean", []).append(
+                            unproc_pickle_path
+                        )
+                        _serialize_info_blob_unlocked(top_cont.blob, par_dir)
             else:
                 assert isinstance(obj_for_region, ExtractionManager)
                 em = obj_for_region
 
             if action and action == ExtractActions.DETECT_COMPONENT:
                 em.detect_components(node_merge_tol=node_merge_tol)
+                self._repickle(page_id, em, top_cont)
                 return HTTPFound(location=f"/extract/{tag}?page={page_id}")
         log.debug(f"em.display_mode = {repr(em.display_mode)}")
         svg = em.as_svg_str()

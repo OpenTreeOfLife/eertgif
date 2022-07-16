@@ -83,6 +83,7 @@ class StudyContainer(object):
             try:
                 with open(pickle_path, "rb") as pinp:
                     o = pickle.load(pinp)
+                    o.post_unpickle()
             except:
                 msg = f"Error unpacking storage for page/region {pg_id}"
                 log.exception(msg)

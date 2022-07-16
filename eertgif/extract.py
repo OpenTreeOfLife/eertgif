@@ -106,13 +106,6 @@ class ExtractionManager(object):
         if self.best_tree is None:
             return get_svg_str(obj_container=self)
 
-    @staticmethod
-    def unpickle(self, in_stream):
-        o = pickle.load(pinp)
-        assert isinstance(o, ExtractionManager)
-        o.id_lock = Lock()
-        o._update_by_id_map()
-
     def _update_by_id_map(self):
         m = {}
         for top_list in [
@@ -147,13 +140,24 @@ class ExtractionManager(object):
                     m[leg.eertgif_id] = leg
         self._by_id = m
 
+    @staticmethod
+    def unpickle(self, in_stream):
+        o = pickle.load(in_stream)
+        assert isinstance(o, ExtractionManager)
+        o.post_unpickle()
+        return o
+
+    def post_unpickle(self):
+        self.id_lock = Lock()
+        self._update_by_id_map()
+
     def pickle(self, out_stream):
         d = self._by_id
         l = self.id_lock
         try:
             self._by_id = {}
             self.id_lock = None
-            pickle.dump(ur, f_out, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(self, out_stream, protocol=pickle.HIGHEST_PROTOCOL)
         finally:
             self._by_id = d
             self.id_lock = l

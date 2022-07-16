@@ -389,3 +389,6 @@ class UnprocessedRegion(object):
         if self.subpage_num is not None:
             return f"{self.page_num}-{self.subpage_num}"
         return str(self.page_num)
+
+    def post_unpickle(self):
+        pass
