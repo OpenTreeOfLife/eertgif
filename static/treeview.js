@@ -198,7 +198,7 @@ function rotateOrientationClicked() {
 }
 
 $(document).ready(function() {
-	var is_rect = vis_style.is_rect_shape:
+	var is_rect = vis_style.is_rect_shape;
 	toggleTreeShape();
 	while (is_rect != vis_style.is_rect_shape) {
 		toggleTreeShape();
