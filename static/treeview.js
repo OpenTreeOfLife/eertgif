@@ -41,6 +41,13 @@ function reloadPageWithParamList(paramList) {
 /////////////////////////////////////////////////////////////////
 
 function toggleCurveSimplify() {
+	if ( $( "#path_desc" ).text() == "simplified") {
+		$( "#path_desc" ).text("connected points");
+		$( "#simplify_btn_text" ).text("Simplify");
+	} else {
+		$( "#path_desc" ).text("simplified");
+		$( "#simplify_btn_text" ).text("Connect points");	
+	}
 	$('#treeholder svg path').each(function(){
 	var dv = $( this ).attr("d");
 	var adv =  $( this ).attr("alt_d");
@@ -146,6 +153,17 @@ function toggleTreeShape() {
 	is_rect_shape = rw > dw;
 }
 
+function textHiding(checkbx) {
+	if (checkbx.checked) {
+		$( "#treeholder svg text" ).each(function() {
+			$( this ).attr("display", "none")
+		});
+	} else {
+		$( "#treeholder svg text" ).each(function() {
+			$( this ).attr("display", "yes")
+		});
+	}
+}
 
 // modified from https://stackoverflow.com/questions/20061774/rotate-an-image-in-image-source-in-html
 function rotate_img_90cw(obj) {

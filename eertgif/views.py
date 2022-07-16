@@ -157,7 +157,7 @@ class EertgifView:
         tag = self.request.matchdict["tag"]
         page_id = self.request.params.get("page")
         if page_id is None:
-            return HTTPBadRequest('"page" query parameter required.')
+            raise HTTPBadRequest('"page" query parameter required.')
         return tag, page_id
 
     @view_config(route_name="eertgif:set_status")
