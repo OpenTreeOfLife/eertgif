@@ -246,7 +246,7 @@ class EertgifView:
                         top_cont.blob.setdefault("to_clean", []).append(
                             unproc_pickle_path
                         )
-                        _serialize_info_blob_unlocked(top_cont.blob, par_dir)
+                        _serialize_info_blob_unlocked(top_cont.blob, top_cont.par_dir)
             else:
                 assert isinstance(obj_for_region, ExtractionManager)
                 em = obj_for_region
@@ -263,6 +263,7 @@ class EertgifView:
             "svg": svg,
             "status": status,
             "node_merge_tol": em.node_merge_tol,
+            "vis_json": json.dumps(em.vis_style),
         }
         return d
 

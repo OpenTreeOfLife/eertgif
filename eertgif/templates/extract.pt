@@ -12,6 +12,9 @@
 <hr />
 
 <div tal:condition="status != 'no trees'">
+    <script>
+vis_style = ${vis_json};
+    </script>
     <script src="/static/treeview.js"></script>
     <div id="tree_button_div">
         <strong>Viz:</strong> Path view: <span id="path_desc">simplified</span> <span id="simplify_btn" class="button" onclick="toggleCurveSimplify()"><span><span id="simplify_btn_text">Connect points</span></span></span>&nbsp;<input type="checkbox" name="hide_text_btn" onchange="textHiding(this)"><label for="hide_text_btn">Hide text</label>

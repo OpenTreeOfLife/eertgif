@@ -51,6 +51,9 @@
 </div>
 <div tal:condition="single_item">
     <div tal:condition="status != 'no trees'">
+    <script>
+vis_style = JSON.parse('{"orientation": "right", "is_rect_shape": true}');
+    </script>
         <script src="/static/treeview.js"></script>
         <div id="tree-button-div"><span class="button" onclick="toggleCurveSimplify()"><span>Toggle curve simplification</span></span></div>
 
@@ -62,7 +65,7 @@
         <p style="font-size:160%;">This regions has been flagged as lacking trees</p>
     </div>
 
-    <p>Back to full study view at <a href="/view/${tag}">edit/${tag}</a>.</p>
+    <p>Back to full study view at <a href="/view/${tag}">view/${tag}</a>.</p>
     <hr />
 </div>
 

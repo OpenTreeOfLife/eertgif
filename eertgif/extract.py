@@ -65,6 +65,7 @@ _def_filter_shapes = {CurveShape.COMPLICATED, CurveShape.DOT}
 
 class ExtractionManager(object):
     def __init__(self, unproc_page):
+        self.vis_style = {"orientation": "right", "is_rect_shape": True}
         self.display_mode = DisplayMode.CURVES_AND_TEXT
         self.node_merge_tol = 0.01
         self.page_num = unproc_page.page_num

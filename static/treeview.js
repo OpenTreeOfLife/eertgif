@@ -1,7 +1,7 @@
 
 
 var el_by_comp_id = {};
-var is_rect_shape = true;
+
 
 /////////////////////////////////////////////////////////////////
 // following 3 functions modified from https://stackoverflow.com/posts/487049/revisions
@@ -150,7 +150,7 @@ function toggleTreeShape() {
 	var dwn= Number(dw);
 	$('#rect_tree_shape_icon').attr("width", dw);
 	$('#diag_tree_shape_icon').attr("width", rw);
-	is_rect_shape = rw > dw;
+	vis_style.is_rect_shape = rw > dw;
 }
 
 function textHiding(checkbx) {
@@ -186,13 +186,30 @@ function rotate_img_90cw(obj) {
 function rotateOrientationClicked() {
 	 rotate_img_90cw($('#rect_tree_shape_icon'));
 	 rotate_img_90cw($('#diag_tree_shape_icon'));
+	 if (vis_style.orientation == "right") {
+	 	vis_style.orientation = "down";
+	 } else if (vis_style.orientation == "down") {
+	 	vis_style.orientation = "left";
+	 } else if (vis_style.orientation == "left") {
+	 	vis_style.orientation = "up";
+	 } else  {
+	 	vis_style.orientation = "right";
+	 }
 }
 
 $(document).ready(function() {
+	var is_rect = vis_style.is_rect_shape:
+	toggleTreeShape();
+	while (is_rect != vis_style.is_rect_shape) {
+		toggleTreeShape();
+	}
 	if (Number($('#rect_tree_shape_icon').attr("width")) > 0) {
 		is_rect_shape = true;
 	} else {
 		is_rect_shape = false;
+	}
+	while (vis_style.orientation != "right") {
+		rotateOrientationClicked();
 	}
 	$("circle").each(add_to_map);
 	$("path").each(add_to_map);
