@@ -129,14 +129,16 @@ def to_svg(out, obj_container=None, styling=None):
         styling.comp_idx2color = {}
         to_sort.sort(reverse=True)
         for n, tup in enumerate(to_sort):
-            comp_idx, nd_list = tup[-2:]
+            comp_idx = tup[-2]
             col_idx = n if n < len(styling.color_list) else -1
             color = styling.color_list[col_idx]
             styling.comp_idx2color[comp_idx] = color
-            for nd in nd_list:
-                node_as_circle(out, nd, xfn, yfn, styling=styling)
         for edge in edge_set:
             curve_as_path(out, edge.curve, xfn, yfn, styling=styling, edge=edge)
+        for n, tup in enumerate(to_sort):
+            nd_list = tup[-1]
+            for nd in nd_list:
+                node_as_circle(out, nd, xfn, yfn, styling=styling)
 
     # log.debug(f"obj_container.text_lines = {obj_container.nontext_objs}")
     for n, text in enumerate(obj_container.text_lines):
