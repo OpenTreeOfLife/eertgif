@@ -17,7 +17,7 @@ vis_style = ${vis_json};
     </script>
     <script src="/static/treeview.js"></script>
     <div id="tree_button_div">
-        <strong>Viz:</strong> Path view: <span id="path_desc">simplified</span> <span id="simplify_btn" class="button" onclick="toggleCurveSimplify()"><span><span id="simplify_btn_text">Connect points</span></span></span>&nbsp;<input type="checkbox" name="hide_text_btn" onchange="textHiding(this)"><label for="hide_text_btn">Hide text</label>
+        <strong>Viz:</strong> Path view: <span id="path_desc">simplified</span> <span id="simplify_btn" class="button" onclick="toggleCurveSimplify()"><span><span id="simplify_btn_text">Connect points</span></span></span>&nbsp;<input type="checkbox" name="hide_text_btn" onchange="textHiding(this)"><label for="hide_text_btn">Hide text</label> <label for="highlight_mode">Highlight:</label> <select id="highlight_mode" name="highlight_mode"> <option value="element">element only</option> <option value="neighbors">+ neighbors</option> <option value="component">+ component</option> </select>
         <hr />
         <strong>Graph Components:</strong> <label for="node_tol_input" >Node merge tol.</label><input type="text" id="node_tol_input" name="node_tol" value="${node_merge_tol}" />&nbsp&nbsp<span class="button" onclick="detectComponents()" display="none"><span>detect components</span></span>
         <hr />

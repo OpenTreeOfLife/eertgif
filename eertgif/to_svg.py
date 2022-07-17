@@ -241,6 +241,11 @@ def curve_as_path(out, curve, xfn, yfn, styling=None, edge=None):
     if eertgif_id is not None:
         atts.append(f'id="{eertgif_id}"')
     if edge:
+        node_refs = ",".join(
+            [str(i.eertgif_id) for i in (edge.nd1, edge.nd2) if i is not None]
+        )
+        if node_refs:
+            atts.append(f'nodes="{node_refs}"')
         atts.append(f'component="{edge.component_idx}"')
 
     color, highlight_color = styling.color_for_el(edge)

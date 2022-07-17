@@ -58,6 +58,26 @@ function toggleCurveSimplify() {
  });
 }
 
+
+function colorElIfNHColorNonNone(el, stroke_color, fill_color) {
+	var nhf = el.getAttribute("nhfcolor");
+	if (nhf !== "none") {
+		if (fill_color === "none") {
+			el.setAttribute("fill", nhf)
+		} else {
+			el.setAttribute("fill", fill_color);
+		}
+	}
+	var nhs = el.getAttribute("nhscolor");
+	if (nhs !== "none") {
+		if (stroke_color === "none") {
+			el.setAttribute("stroke", nhs)
+		} else {
+			el.setAttribute("stroke", stroke_color);
+		}
+	}
+}
+
 function setColorsForSameComp(comp_id, stroke_color, fill_color) {
 	var el_of_same_comp = el_by_comp_id[comp_id]
 	if (typeof el_of_same_comp === 'undefined') {
@@ -67,52 +87,55 @@ function setColorsForSameComp(comp_id, stroke_color, fill_color) {
 	var el;
 	for (; i < el_of_same_comp.length; i++) {
 		el = el_of_same_comp[i];
-		var nhf = el.getAttribute("nhfcolor");
-		if (nhf !== "none") {
-			if (fill_color === "none") {
-				el.setAttribute("fill", nhf)
-			} else {
-				el.setAttribute("fill", fill_color);
-			}
-		}
-		var nhs = el.getAttribute("nhscolor");
-		if (nhs !== "none") {
-			if (stroke_color === "none") {
-				el.setAttribute("stroke", nhs)
-			} else {
-				el.setAttribute("stroke", stroke_color);
-			}
+		colorElIfNHColorNonNone(el, stroke_color, fill_color);
+	}
+}
+
+function colorComSepList(edge_refs, stroke_color, fill_color) {
+	var er;
+	var el;
+	if (edge_refs && edge_refs !== "") {
+		var edge_list = edge_refs.split(",")
+		let i=0
+		for (; i < edge_list.length; i++) {
+			er = "#" + edge_list[i].trim();
+			el = $( er ).get();
+			colorElIfNHColorNonNone(el, stroke_color, fill_color);
 		}
 	}
 }
 
-function mouseOverNode(target) {
-	var comp_id = target.getAttribute("component");
-	if (typeof comp_id === 'undefined') {
-		return;
+function setColorsForNeighbors(el, stroke_color, fill_color) {
+	colorComSepList(el.getAttribute("edges"), stroke_color, fill_color);
+	colorComSepList(el.getAttribute("nodes"), stroke_color, fill_color);
+}
+
+
+function mouseColorEvent(target, sc, fc) {
+	colorElIfNHColorNonNone(target, sc, fc);
+	var highlight_mode = $("#highlight_mode").val();
+	if (highlight_mode == "component") {
+		var comp_id = target.getAttribute("component");
+		if (typeof comp_id === 'undefined') {
+			return;
+		}
+		setColorsForSameComp(comp_id, sc, fc);
+	} else if (highlight_mode == "neighbors") {
+		setColorsForNeighbors(el, sc, fc);
 	}
-	setColorsForSameComp(comp_id, "red", "red");
-	// var edge_refs = target.getAttribute("edges");
-	// if (!edge_refs || edge_refs === "") {
-	// 	return;
-	// }
-	// var edge_list = edge_refs.split(",")
-	// var er;
-	// let i=0
-	// for (; i <edge_list.length; i++) {
-	// 	er = "#" + edge_list[i].trim();
-	// 	$( er ).attr("stroke", "red");
-	// }
+}
+function mouseOverNode(target) {
+	var sc = "red";
+	var fc = "red";
+	mouseColorEvent(target, sc, fc);
 }
 
 var mouseOverEdge = mouseOverNode;
 
 function mouseOutNode(target) {
-	var comp_id = target.getAttribute("component");
-	if (typeof comp_id === 'undefined') {
-		return;
-	}
-	setColorsForSameComp(comp_id, target.getAttribute("nhscolor"), target.getAttribute("nhfcolor"));
+	var sc = target.getAttribute("nhscolor");
+	var fc = target.getAttribute("nhfcolor");
+	mouseColorEvent(target, sc, fc);
 }
 
 var mouseOutEdge = mouseOutNode;
@@ -198,18 +221,16 @@ function rotateOrientationClicked() {
 }
 
 $(document).ready(function() {
-	var is_rect = vis_style.is_rect_shape;
-	toggleTreeShape();
-	while (is_rect != vis_style.is_rect_shape) {
+	var rect_el = $('#rect_tree_shape_icon');
+	if (rect_el.length) {
+		var is_rect = vis_style.is_rect_shape;
 		toggleTreeShape();
-	}
-	if (Number($('#rect_tree_shape_icon').attr("width")) > 0) {
-		is_rect_shape = true;
-	} else {
-		is_rect_shape = false;
-	}
-	while (vis_style.orientation != "right") {
-		rotateOrientationClicked();
+		if (is_rect != vis_style.is_rect_shape) {
+			toggleTreeShape();
+		}
+		while (vis_style.orientation != "right") {
+			rotateOrientationClicked();
+		}
 	}
 	$("circle").each(add_to_map);
 	$("path").each(add_to_map);
