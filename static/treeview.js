@@ -60,6 +60,7 @@ function toggleCurveSimplify() {
 
 
 function colorElIfNHColorNonNone(el, stroke_color, fill_color) {
+	el.setAttribute("display", "yes");
 	var nhf = el.getAttribute("nhfcolor");
 	if (nhf !== "none") {
 		if (fill_color === "none") {
@@ -78,11 +79,12 @@ function colorElIfNHColorNonNone(el, stroke_color, fill_color) {
 	}
 }
 
-function setColorsForSameComp(comp_id, stroke_color, fill_color) {
+function setColorsForSameComp(comp_id, stroke_color, fill_color, nonmatching_display) {
 	var el_of_same_comp = el_by_comp_id[comp_id]
 	if (typeof el_of_same_comp === 'undefined') {
 		return;
 	}
+	setDisplayForGraph(nonmatching_display);
 	var i = 0;
 	var el;
 	for (; i < el_of_same_comp.length; i++) {
@@ -99,35 +101,56 @@ function colorComSepList(edge_refs, stroke_color, fill_color) {
 		let i=0
 		for (; i < edge_list.length; i++) {
 			er = "#" + edge_list[i].trim();
-			el = $( er ).get();
+			el = $( er ).get(0);
 			colorElIfNHColorNonNone(el, stroke_color, fill_color);
 		}
 	}
 }
+function setDisplayForGraph(nonmatching_display) {
+	$("#treeholder svg path").each(function() {
+		$( this ).attr("display", nonmatching_display);
+	});
+	$("#treeholder svg circle").each(function() {
+		$( this ).attr("display", nonmatching_display);
+	});
+}
 
-function setColorsForNeighbors(el, stroke_color, fill_color) {
+function setColorsForNeighbors(el, stroke_color, fill_color, nonmatching_display) {
+	setDisplayForGraph(nonmatching_display);
 	colorComSepList(el.getAttribute("edges"), stroke_color, fill_color);
 	colorComSepList(el.getAttribute("nodes"), stroke_color, fill_color);
 }
 
 
-function mouseColorEvent(target, sc, fc) {
-	colorElIfNHColorNonNone(target, sc, fc);
+function mouseColorEvent(target, sc, fc, out_move) {
+	var nonmatching_display;
 	var highlight_mode = $("#highlight_mode").val();
-	if (highlight_mode == "component") {
+	if (highlight_mode == "component" || highlight_mode == "component-only") {
 		var comp_id = target.getAttribute("component");
 		if (typeof comp_id === 'undefined') {
 			return;
 		}
-		setColorsForSameComp(comp_id, sc, fc);
-	} else if (highlight_mode == "neighbors") {
-		setColorsForNeighbors(el, sc, fc);
+		if (out_move || highlight_mode == "component" ) {
+			nonmatching_display = "yes";
+		} else {
+			nonmatching_display = "none"
+		}
+		setColorsForSameComp(comp_id, sc, fc, nonmatching_display);
+	} else if (highlight_mode == "neighbors" || highlight_mode == "neighbors-only") {
+		if (out_move || highlight_mode == "neighbors" ) {
+			nonmatching_display = "yes";
+		} else {
+			nonmatching_display = "none"
+		}
+		setColorsForNeighbors(target, sc, fc, nonmatching_display);
 	}
+	colorElIfNHColorNonNone(target, sc, fc);
+	
 }
 function mouseOverNode(target) {
 	var sc = "red";
 	var fc = "red";
-	mouseColorEvent(target, sc, fc);
+	mouseColorEvent(target, sc, fc, false);
 }
 
 var mouseOverEdge = mouseOverNode;
@@ -135,7 +158,7 @@ var mouseOverEdge = mouseOverNode;
 function mouseOutNode(target) {
 	var sc = target.getAttribute("nhscolor");
 	var fc = target.getAttribute("nhfcolor");
-	mouseColorEvent(target, sc, fc);
+	mouseColorEvent(target, sc, fc, true);
 }
 
 var mouseOutEdge = mouseOutNode;
