@@ -176,7 +176,8 @@ class GraphFromEdges(object):
         return self.nodes.iter_nodes()
 
     def add_curve(self, curve: SafeCurve) -> Edge:
-        pt1, pt2 = curve.pts[0], curve.pts[-1]
+        assert curve.eff_diagonal is not None
+        pt1, pt2 = curve.eff_diagonal[0], curve.eff_diagonal[-1]
         nd1 = self.find_or_insert_node(pt1)[0]
         nd2 = self.find_or_insert_node(pt2)[0]
         edge = Edge(curve, nd1, nd2, id_gen=self.id_gen)
