@@ -49,7 +49,7 @@ class AxisDir(IntEnum):
 CARDINAL = (Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST)
 
 
-class DisplayMode:
+class DisplayMode(IntEnum):
     CURVES_AND_TEXT = 0  # Initial import, no analysis done
     COMPONENTS = 1  # creation of a forest based on node detection, but no tree
     PHYLO = 2  # tree has been extracted
@@ -172,3 +172,54 @@ def bbox_to_corners(bbox: Rect) -> Tuple[Tuple[Point, Point]]:
     y0 = min(ty0, ty1)
     y1 = max(ty0, ty1)
     return ((x0, y0), (x0, y1), (x1, y1), (x1, y0))
+
+
+class ExtractionConfig(object):
+    vs_keys = ("orientation", "is_rect_shape", "display_mode")
+    defaults = {
+        "vis_style": {
+            "orientation": "right",
+            "is_rect_shape": False,
+            "display_mode": DisplayMode.CURVES_AND_TEXT,
+        },
+        "node_merge_tol": 0.01,
+    }
+
+    def __init__(self, obj=None):
+        if obj is None:
+            obj = {}
+        defs = ExtractionConfig.defaults
+        v = obj.get("vis_style")
+        if v is None:
+            self.vis_style = dict(ExtractionConfig.defaults["vis_style"])
+        else:
+            if (
+                not isinstance(v, dict)
+                or ("orientation" not in v)
+                or ("is_rect_shape" not in v)
+                or (not isinstance(v["is_rect_shape"], bool))
+                or ("display_mode" not in v)
+            ):
+                raise ValueError("vis_style must be a dict with the required keys")
+            o = v["orientation"]
+            if not isinstance(o, str) or o not in ["right", "up", "down", "left"]:
+                raise ValueError("vis_style['orientation'] must be left/right/up/down")
+            i = v["display_mode"]
+            if not isinstance(i, DisplayMode):
+                try:
+                    i = DisplayMode(i)
+                except:
+                    raise ValueError(
+                        "vis_style['display_mode'] must be a DisplayMode facet"
+                    )
+            self.vis_style = {}
+            for k in ExtractionConfig.vs_keys:
+                self.vis_style = v[k]
+
+        v = obj.get("node_merge_tol")
+        if v is None:
+            self.node_merge_tol = defs["node_merge_tol"]
+        else:
+            if not (isinstance(v, float) or isinstance(v, int)):
+                raise ValueError("node_merge_tol must be a number")
+            self.node_merge_tol = v

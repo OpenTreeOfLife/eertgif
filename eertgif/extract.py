@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import json
 from typing import List, Tuple
 from threading import Lock
 import pickle
@@ -11,7 +12,7 @@ from pdfminer.high_level import LAParams
 from pdfminer.layout import LTChar, LTFigure, LTCurve, LTTextLine, LTTextBox, LTImage
 from .to_svg import to_html
 from .graph import GraphFromEdges
-from .util import CurveShape, DisplayMode
+from .util import CurveShape, DisplayMode, ExtractionConfig
 from .safe_containers import UnprocessedRegion, SafeCurve
 
 log = logging.getLogger("eertgif.extract")
@@ -64,10 +65,10 @@ _def_filter_shapes = {CurveShape.COMPLICATED, CurveShape.DOT}
 
 
 class ExtractionManager(object):
-    def __init__(self, unproc_page):
-        self.vis_style = {"orientation": "right", "is_rect_shape": True}
-        self.display_mode = DisplayMode.CURVES_AND_TEXT
-        self.node_merge_tol = 0.01
+    def __init__(self, unproc_page, extract_cfg=None):
+        if extract_cfg is None:
+            extract_cfg = ExtractionConfig()
+        self._cfg = extract_cfg
         self.page_num = unproc_page.page_num
         self.subpage_num = unproc_page.subpage_num
         self.font_dict = dict(unproc_page.font_dict)
@@ -92,6 +93,36 @@ class ExtractionManager(object):
         self._by_id = {}
         self._filter()
         self._update_by_id_map()
+
+    @property
+    def vis_style(self):
+        return self._cfg.vis_style
+
+    @property
+    def display_mode(self):
+        return self._cfg.vis_style["display_mode"]
+
+    @display_mode.setter
+    def display_mode(self, new_dm):
+        if not isinstance(new_dm, DisplayMode):
+            new_dm = DisplayMode(new_dm)
+        self._cfg.vis_style["display_mode"] = new_dm
+
+    @property
+    def node_merge_tol(self):
+        return self._cfg.node_merge_tol
+
+    @node_merge_tol.setter
+    def node_merge_tol(self, new_node_merge_tol):
+        if (
+            not (
+                isinstance(new_node_merge_tol, float)
+                or isinstance(new_node_merge_tol, int)
+            )
+            or new_node_merge_tol < 0
+        ):
+            raise ValueError("node_merge_tol must be positive")
+        self._cfg.node_merge_tol = new_node_merge_tol
 
     def iter_nodes(self):
         g = self.graph
@@ -129,6 +160,8 @@ class ExtractionManager(object):
                         m[e.eertgif_id] = e
                 # record all the PhyloTrees
                 for t in f.trees:
+                    if t is None:
+                        continue
                     m[t.eertgif_id] = t
                     pma = t.pma
                     if pma:
@@ -185,7 +218,7 @@ class ExtractionManager(object):
         new_graph = self.graph is None or self.graph.tol != node_merge_tol
         if new_graph:
             self.node_merge_tol = node_merge_tol
-            self.graph = GraphFromEdges(self, node_merge_tol=self.node_merge_tol)
+            self.graph = GraphFromEdges(self, node_merge_tol=node_merge_tol)
             for curve in self.nontext_objs:
                 self.graph.add_curve(curve)
         new_forest = self.forest is None or new_graph
@@ -196,9 +229,9 @@ class ExtractionManager(object):
         if self.display_mode == DisplayMode.CURVES_AND_TEXT:
             self.display_mode = DisplayMode.COMPONENTS
 
-    def analyze(self, node_merge_tol=None):
+    def analyze(self):
         # build forest, but don't update map, as we'll do that after the trees are made
-        self.detect_components(node_merge_tol=node_merge_tol, suppress_update_map=True)
+        self.detect_components(suppress_update_map=True)
         extra_lines = set(self.text_lines)
         best_tree, best_score = None, float("inf")
         for n, c in enumerate(self.forest.components):
@@ -236,9 +269,9 @@ class ExtractionManager(object):
         return None
 
 
-def analyze_figure(fig, params=None):
+def analyze_figure(fig, params=None, extract_cfg=None):
     unproc_page = find_text_and_curves(fig, params=params)[0]
-    extract_mgr = ExtractionManager(unproc_page)
+    extract_mgr = ExtractionManager(unproc_page, extract_cfg=extract_cfg)
     tree = extract_mgr.analyze()
     if tree:
         print(tree.root.get_newick(extract_mgr.edge_len_scaler))
@@ -312,16 +345,26 @@ def get_regions_unprocessed(filepath, params=None, image_writer=None):
     return ur, image_paths
 
 
-def main(fp):
+def main(fp, config_fp):
+    if fp == config_fp:
+        ec = ExtractionConfig()
+    else:
+        with open(fp, "r") as cinp:
+            obj = json.load(cinp)
+            ec = ExtractionConfig(obj)
+    return do_extraction(fp, extract_cfg=ec)
+
+
+def do_extraction(fp, extract_cfg):
     for page_tup in my_extract_pages(fp):
         page_layout = page_tup[0]
         figures = [el for el in page_layout if isinstance(el, LTFigure)]
         if figures:
             for fig in figures:
-                analyze_figure(fig)
+                analyze_figure(fig, extract_cfg=extract_cfg)
         else:
-            analyze_figure(page_layout)
+            analyze_figure(page_layout, extract_cfg=extract_cfg)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main(sys.argv[1], sys.argv[-1])

@@ -131,6 +131,11 @@ class PhyloTree(object):
                         self.pma.messages,
                     )
 
+    def post_order(self):
+        if self.root is None:
+            return []
+        return self.root.post_order()
+
     @property
     def score(self):
         return self.pma.score
