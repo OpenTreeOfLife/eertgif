@@ -67,9 +67,7 @@ _def_filter_shapes = {CurveShape.COMPLICATED, CurveShape.DOT}
 
 class ExtractionManager(object):
     def __init__(self, unproc_page, extract_cfg=None):
-        if extract_cfg is None:
-            extract_cfg = ExtractionConfig()
-        self._cfg = extract_cfg
+        self._cfg = ExtractionConfig(extract_cfg)
         self.page_num = unproc_page.page_num
         self.subpage_num = unproc_page.subpage_num
         self.font_dict = dict(unproc_page.font_dict)
@@ -96,9 +94,9 @@ class ExtractionManager(object):
         self._update_by_id_map()
 
     def set_extract_config(self, extract_cfg):
-        if not isinstance(extract_cfg, ExtractionConfig):
-            extract_cfg = ExtractionConfig(extract_cfg)
+        extract_cfg = ExtractionConfig(extract_cfg, self._cfg)
         vis_style = extract_cfg.get("vis_style", {})
+        # log.warning(f"vis_style = {vis_style}")
         for k in ExtractionConfig.vs_keys:
             if k in vis_style:
                 self._cfg.vis_style[k] = copy.deepcopy(vis_style[k])

@@ -187,14 +187,20 @@ class ExtractionConfig(object):
     }
     all_keys = tuple(["vis_style"] + list(non_vs_keys))
 
-    def __init__(self, obj=None):
+    def __init__(self, obj=None, second_level=None):
         if obj is None:
             obj = {}
+        if second_level is None:
+            second_level = {}
         defs = ExtractionConfig.defaults
         v = obj.get("vis_style")
+        vs = obj.get("vis_style")
+        # log.warning(f"v={v} vs={vs}")
         if v is None:
-            self.vis_style = dict(ExtractionConfig.defaults["vis_style"])
-        else:
+            if vs is None:
+                self.vis_style = dict(ExtractionConfig.defaults["vis_style"])
+            v = vs
+        if v is not None:
             if (
                 not isinstance(v, dict)
                 or ("orientation" not in v)
@@ -216,17 +222,21 @@ class ExtractionConfig(object):
                     )
             self.vis_style = {}
             for k in ExtractionConfig.vs_keys:
-                self.vis_style = v[k]
+                self.vis_style[k] = v[k]
 
         v = obj.get("node_merge_tol")
+        vs = obj.get("node_merge_tol")
         if v is None:
-            self.node_merge_tol = defs["node_merge_tol"]
-        else:
+            if vs is None:
+                self.node_merge_tol = defs["node_merge_tol"]
+            v = vs
+        if v is not None:
             if not (isinstance(v, float) or isinstance(v, int)):
                 raise ValueError("node_merge_tol must be a number")
             self.node_merge_tol = v
+        # log.warning(f"self.__dict__ = {self.__dict__}")
 
-    def get(self, key, default):
+    def get(self, key, default=None):
         if key not in ExtractionConfig.all_keys:
             raise KeyError(f"{key} is not supported by ExtractionConfig")
         return getattr(self, key, default)
