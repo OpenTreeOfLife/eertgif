@@ -175,15 +175,15 @@ def bbox_to_corners(bbox: Rect) -> Tuple[Tuple[Point, Point]]:
 
 
 class ExtractionConfig(object):
-    vs_keys = ("orientation", "is_rect_shape", "display_mode")
-    non_vs_keys = ("node_merge_tol",)
+    vs_keys = ("orientation", "display_mode")
+    non_vs_keys = ("node_merge_tol", "is_rect_shape")
     defaults = {
         "vis_style": {
             "orientation": "right",
-            "is_rect_shape": False,
             "display_mode": DisplayMode.CURVES_AND_TEXT,
         },
         "node_merge_tol": 0.01,
+        "is_rect_shape": False,
     }
     all_keys = tuple(["vis_style"] + list(non_vs_keys))
 
@@ -194,7 +194,7 @@ class ExtractionConfig(object):
             second_level = {}
         defs = ExtractionConfig.defaults
         v = obj.get("vis_style")
-        vs = obj.get("vis_style")
+        vs = second_level.get("vis_style")
         # log.warning(f"v={v} vs={vs}")
         if v is None:
             if vs is None:
@@ -204,8 +204,6 @@ class ExtractionConfig(object):
             if (
                 not isinstance(v, dict)
                 or ("orientation" not in v)
-                or ("is_rect_shape" not in v)
-                or (not isinstance(v["is_rect_shape"], bool))
                 or ("display_mode" not in v)
             ):
                 raise ValueError("vis_style must be a dict with the required keys")
@@ -224,17 +222,28 @@ class ExtractionConfig(object):
             for k in ExtractionConfig.vs_keys:
                 self.vis_style[k] = v[k]
 
-        v = obj.get("node_merge_tol")
-        vs = obj.get("node_merge_tol")
+        self._init_set(
+            "node_merge_tol",
+            obj,
+            second_level,
+            lambda val: (isinstance(val, float) or isinstance(val, int)) and val >= 0.0,
+        )
+        self._init_set(
+            "is_rect_shape", obj, second_level, lambda val: isinstance(val, bool)
+        )
+
+    def _init_set(self, attr, primary, secondary, predicate):
+        v = primary.get(attr)
+        vs = secondary.get(attr)
         if v is None:
             if vs is None:
-                self.node_merge_tol = defs["node_merge_tol"]
+                setattr(self, attr, ExtractionConfig.defaults[attr])
+                return
             v = vs
-        if v is not None:
-            if not (isinstance(v, float) or isinstance(v, int)):
-                raise ValueError("node_merge_tol must be a number")
-            self.node_merge_tol = v
-        # log.warning(f"self.__dict__ = {self.__dict__}")
+        assert v is not None
+        if not predicate(v):
+            raise ValueError("attribute {attr} failed precondition test")
+        setattr(self, attr, v)
 
     def get(self, key, default=None):
         if key not in ExtractionConfig.all_keys:
