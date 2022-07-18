@@ -6,7 +6,7 @@ from typing import List, Tuple, Union, Optional
 from pdfminer.utils import Point
 from .point_map import PointMap
 from .util import Direction, calc_dist
-from .safe_containers import SafeCurve, SafeTextLine
+from .safe_containers import SafeCurve, SafeTextLine, CurveShape, all_corner_shapes
 
 log = logging.getLogger(__name__)
 
@@ -108,6 +108,95 @@ class Edge(object):
     def length(self):
         return calc_dist(self.nd1.loc, self.nd2.loc)
 
+    def most_extreme_vis_point(self, direction):
+        c = self.curve
+        me_pt = None
+        find_max = True
+        idx = 0
+        if direction == Direction.EAST:
+            pass
+
+            find_max = True
+        elif direction == Direction.EAST:
+            find_max = False
+
+        else:
+            idx = 1
+            if direction == Direction.SOUTH:
+                find_max = False
+            else:
+                assert direction == Direction.NORTH
+        if find_max:
+            me = float("-inf")
+            for pt in c.pts:
+                if pt[idx] > me:
+                    me_pt = pt
+                    me = pt[idx]
+        else:
+            me = float("inf")
+            for pt in c.pts:
+                if pt[idx] < me:
+                    me_pt = pt
+                    me = pt[idx]
+        return me_pt
+
+    def axis_contains(self, axis, point, tol):
+        """
+        Uses effective diganal and shape to find axes.
+        returns:
+            False, None  or
+            True, list of lenght 2 of coordinates with variable coord None
+        """
+        c = self.curve
+        if c.eff_diagonal is None or curve.shape not in all_corner_shapes:
+            # No axis unless a corner
+            return False, None
+        eff_d1, eff_d2 = c.eff_diagonal
+        if axis == AxisDir.VERTICAL:
+            cidx = 0
+            if c.shape == CurveShape.CORNER_LL or c.shape == CurveShape.CORNER_UL:
+                ext_fn = min
+            else:
+                ext_fn = max
+        else:
+            assert axis == AxisDir.HORIZONTAL
+            cidx = 0
+            if c.shape == CurveShape.CORNER_LL or c.shape == CurveShape.CORNER_LR:
+                ext_fn = min
+            else:
+                ext_fn = max
+        ax_const_coord = ext_fn(eff_d1[cidx], eff_d2[cidx])
+        pc = point[cidx]
+        if abs(pc - ax_const_coord) > tol:
+            # constant coord not within TOL
+            return False, None
+        vidx = 1 - cidx
+        ax_var = (eff_d1[vidx], eff_d2[vidx])
+        if ax_var[0] > ax_var[1]:
+            ax_var = (ax_var[1], ax_var[0])
+        vc = point[vidx]
+        if (ax_var[0] - vc) > tol or (vc - ax_var[1]) > tol:
+            # point's variable coord more than TOL outside of the endpoints
+            return False, None
+        ret_coord = [None, None]
+        ret_coord[cidx] = ax_const_coord
+        if ax_var[0] < vc < ax_var[1]:
+            # const withing TOL, variable witin axis
+            return True, ret_coord
+        # variable coordinate outside of axis, but coudl be within TOL
+        #   of the endpoints
+        ex_point = [None, None]
+        ex_point[cidx] = ax_const_coord
+        if vc < ax_var[0]:
+            ex_point[vidx] = ax_var[0]
+            if calc_dist(point, tuple(ex_point)) <= tol:
+                return True, ret_coord
+        elif vc > ax_var[1]:
+            ex_point[vidx] = ax_var[1]
+            if calc_dist(point, tuple(ex_point)) <= tol:
+                return True, ret_coord
+        return False, None
+
 
 class PlanarContainer(object):
     def __init__(self, id_gen):
@@ -183,6 +272,49 @@ class GraphFromEdges(object):
         edge = Edge(curve, nd1, nd2, id_gen=self.id_gen)
         self.edges.add(edge)
         return edge
+
+    def force_merge(
+        self,
+        edge1,  # edge that holds a Node to be merged
+        most_extreme_pt_edge1,  # Point, not Node
+        edge2,
+        var_coord,
+    ):
+        # find closest node in edge1
+        dist_n1_1 = calc_dist(most_extreme_pt_edge1, (edge1.nd1.x, edge1.nd1.y))
+        dist_n1_2 = calc_dist(most_extreme_pt_edge1, (edge1.nd2.x, edge1.nd2.y))
+        rep_1_in_1 = dist_n1_1 <= dist_n1_2
+        if rep_1_in_1:
+            cn1 = edge1.nd1
+        else:
+            cn1 = edge1.nd2
+        # find closest node in edge2
+        if var_coord[0] is None:
+            idx = 1
+        else:
+            idx = 0
+            assert var_coord[1] is None
+        vc = var_coord[idx]
+        assert vc is not None
+        cn2 = edge2.nd1
+        if abs(edge2.nd1[idx] - vc) > abs(edge2.nd1[idx] - vc):
+            cn2 = edge2.nd2
+        # Now remove edge1 from cn1
+        cn1.edges.remove(edge1)
+        # move other edges attached to that node, and attach them to cn2
+        other = list(cn1.edges) + [edge1]
+        for other_edge in other:
+            if other_edge is edge2:
+                continue
+            if cn1 is other_edge.nd1:
+                other_edge.nd1 = cn2
+                if cn1 is other_edge.nd2:
+                    assert other_edge is edge1
+                    other_edge.nd2 = cn2
+            else:
+                assert cn1 is other_edge.nd2
+                other_edge.nd2 = cn2
+            cn2.edges.add(other_edge)
 
     def find_or_insert_node(
         self, point: Point, tol: float = None

@@ -2,12 +2,20 @@ from __future__ import annotations
 
 import logging
 import re
-from enum import IntEnum
 from typing import Tuple, Optional
-from pdfminer.utils import Point
+
 from pdfminer.layout import LTChar, LTTextLineHorizontal, LTTextLineVertical, LTAnno
-from .util import AxisDir, DIM_TOL, bbox_to_corners, calc_dist, CurveShape, DisplayMode
+from pdfminer.utils import Point
 from .point_map import PointMap
+from .util import (
+    AxisDir,
+    DIM_TOL,
+    bbox_to_corners,
+    calc_dist,
+    CurveShape,
+    DisplayMode,
+    corners_order,
+)
 
 log = logging.getLogger(__name__)
 
@@ -23,15 +31,6 @@ def safe_number(x):
     if isinstance(x, float):
         return float(x)
     raise TypeError(f"Expected number got {type(x)} for {x}")
-
-
-# See doc of bbox_to_corners
-_corners_order = (
-    CurveShape.CORNER_LL,
-    CurveShape.CORNER_UL,
-    CurveShape.CORNER_UR,
-    CurveShape.CORNER_LR,
-)
 
 
 class SafeCurve(object):
@@ -97,7 +96,7 @@ def _diagnose_corner_shaped(pts, corners, in_corner_tol=CORNER_TOL):
             d = calc_dist(pt, c)
             if d <= in_corner_tol and d < closest_dist:
                 closest_dist = d
-                closest_dir = _corners_order[n]
+                closest_dir = corners_order[n]
         if closest_dir is None:
             return False, None, None
         else:
@@ -107,7 +106,7 @@ def _diagnose_corner_shaped(pts, corners, in_corner_tol=CORNER_TOL):
     if len(closest_corners) == 1:
         # might happen due to dots with rounding error preferring same corner?
         cc = next(iter(closest_corners))
-        idx = _corners_order.index(cc)
+        idx = corners_order.index(cc)
         cp = corners[idx]
         return False, CurveShape.DOT, None, (cp, cp)
     if len(closest_corners) == 3:
@@ -122,7 +121,7 @@ def _diagnose_corner_shaped(pts, corners, in_corner_tol=CORNER_TOL):
     assert len(closest_corners) == 2
     # all points close to corner, but
     first, second = list(closest_corners)
-    fidx, sidx = _corners_order.index(first), _corners_order.index(second)
+    fidx, sidx = corners_order.index(first), corners_order.index(second)
     return False, CurveShape.LINE_LIKE, (corners[fidx], corners[sidx])
 
 

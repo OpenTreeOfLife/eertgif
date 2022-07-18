@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import logging
-import sys
-import json
-from typing import List, Tuple
-from threading import Lock
-import pickle
 import copy
+import json
+import logging
+import pickle
+import sys
+from threading import Lock
+from typing import List, Tuple
+
 
 from pdfminer.high_level import LAParams
-from pdfminer.layout import LTChar, LTFigure, LTCurve, LTTextLine, LTTextBox, LTImage
-from .to_svg import to_html
+from pdfminer.layout import LTChar, LTFigure, LTTextLine, LTTextBox, LTImage
 from .graph import GraphFromEdges
-from .util import CurveShape, DisplayMode, ExtractionConfig
-from .safe_containers import UnprocessedRegion, SafeCurve
+from .safe_containers import UnprocessedRegion
+from .util import CurveShape, DisplayMode, ExtractionConfig, Direction, AxisDir
 
 log = logging.getLogger("eertgif.extract")
 # Includes some code from pdfminer layout.py
@@ -105,13 +105,13 @@ class ExtractionManager(object):
 
     @property
     def display_mode(self):
-        return self._cfg["display_mode"]
+        return self._cfg.display_mode
 
     @display_mode.setter
     def display_mode(self, new_dm):
         if not isinstance(new_dm, DisplayMode):
             new_dm = DisplayMode(new_dm)
-        self._cfg["display_mode"] = new_dm
+        self._cfg.display_mode = new_dm
 
     @property
     def node_merge_tol(self):
@@ -180,7 +180,7 @@ class ExtractionManager(object):
         self._by_id = m
 
     @staticmethod
-    def unpickle(self, in_stream):
+    def unpickle(in_stream):
         o = pickle.load(in_stream)
         assert isinstance(o, ExtractionManager)
         o.post_unpickle()
@@ -192,14 +192,14 @@ class ExtractionManager(object):
 
     def pickle(self, out_stream):
         d = self._by_id
-        l = self.id_lock
+        lock = self.id_lock
         try:
             self._by_id = {}
             self.id_lock = None
             pickle.dump(self, out_stream, protocol=pickle.HIGHEST_PROTOCOL)
         finally:
             self._by_id = d
-            self.id_lock = l
+            self.id_lock = lock
 
     def get_new_id(self):
         with self.id_lock:
@@ -216,6 +216,59 @@ class ExtractionManager(object):
             else:
                 self.nontext_objs.append(obj)
 
+    def _new_graph(self):
+        """
+        Caller must update_map."""
+        nm_tol = self.node_merge_tol
+        self.graph = GraphFromEdges(self, node_merge_tol=nm_tol)
+        first, deferred = [], []
+
+        rect_shape = self._cfg.is_rect_shape
+        target_shapes, ext_point_dir = None, None
+        if rect_shape:
+            orientation = self._cfg.orientation
+            if orientation == "right":
+                target_shapes = {CurveShape.CORNER_LL, CurveShape.CORNER_UL}
+                ext_point_dir = Direction.EAST
+                base_axis = AxisDir.VERTICAL
+            elif orientation == "left":
+                target_shapes = {CurveShape.CORNER_LR, CurveShape.CORNER_UR}
+                ext_point_dir = Direction.WEST
+                base_axis = AxisDir.VERTICAL
+            elif orientation == "down":
+                target_shapes = {CurveShape.CORNER_UL, CurveShape.CORNER_UR}
+                ext_point_dir = Direction.SOUTH
+                base_axis = AxisDir.HORIZONTAL
+            else:
+                assert orientation == "up"
+                target_shapes = {CurveShape.CORNER_LL, CurveShape.CORNER_LR}
+                ext_point_dir = Direction.NORTH
+                base_axis = AxisDir.HORIZONTAL
+
+            for curve in self.nontext_objs:
+                dest = first if curve.shape in target_shapes else deferred
+                dest.append(curve)
+        else:
+            first = self.nontext_objs
+
+        fedges, dedges = [], []
+        for curve in first:
+            fedges.append(self.graph.add_curve(curve))
+        for curve in deferred:
+            dedges.append(self.graph.add_curve(curve))
+        all_edges = fedges + dedges
+        if not rect_shape:
+            return
+
+        for e1 in fedges:
+            most_extreme = e1.most_extreme_vis_point(ext_point_dir)
+            for e2 in fedges:
+                if e2 is e1:
+                    continue
+                contains, coord = e2.axis_contains(base_axis, most_extreme, nm_tol)
+                if contains:
+                    self.graph.force_merge(e1, most_extreme, e2, coord)
+
     def detect_components(self, node_merge_tol=None, suppress_update_map=False):
         node_merge_tol = (
             node_merge_tol if node_merge_tol is not None else self.node_merge_tol
@@ -223,9 +276,7 @@ class ExtractionManager(object):
         new_graph = self.graph is None or self.graph.tol != node_merge_tol
         if new_graph:
             self.node_merge_tol = node_merge_tol
-            self.graph = GraphFromEdges(self, node_merge_tol=node_merge_tol)
-            for curve in self.nontext_objs:
-                self.graph.add_curve(curve)
+            self._new_graph()
         new_forest = self.forest is None or new_graph
         if new_forest:
             self.forest = self.graph.build_forest()

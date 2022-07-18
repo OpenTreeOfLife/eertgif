@@ -34,10 +34,21 @@ class CurveShape(IntEnum):
     CORNER_LL = 1  # └
     CORNER_UL = 2  # ┌
     CORNER_UR = 3  # ┐
-    CORNER_LR = 4  #  ┘
+    CORNER_LR = 4  # ┘
     LINE_LIKE = 5
     COMPLICATED = 6
     DOT = 7
+
+
+# See doc of bbox_to_corners
+corners_order = (
+    CurveShape.CORNER_LL,
+    CurveShape.CORNER_UL,
+    CurveShape.CORNER_UR,
+    CurveShape.CORNER_LR,
+)
+
+all_corner_shapes = frozenset(corners_order)
 
 
 class AxisDir(IntEnum):
