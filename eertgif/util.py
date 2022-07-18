@@ -176,6 +176,7 @@ def bbox_to_corners(bbox: Rect) -> Tuple[Tuple[Point, Point]]:
 
 class ExtractionConfig(object):
     vs_keys = ("orientation", "is_rect_shape", "display_mode")
+    non_vs_keys = ("node_merge_tol",)
     defaults = {
         "vis_style": {
             "orientation": "right",
@@ -184,6 +185,7 @@ class ExtractionConfig(object):
         },
         "node_merge_tol": 0.01,
     }
+    all_keys = tuple(["vis_style"] + list(non_vs_keys))
 
     def __init__(self, obj=None):
         if obj is None:
@@ -223,3 +225,21 @@ class ExtractionConfig(object):
             if not (isinstance(v, float) or isinstance(v, int)):
                 raise ValueError("node_merge_tol must be a number")
             self.node_merge_tol = v
+
+    def get(self, key, default):
+        if key not in ExtractionConfig.all_keys:
+            raise KeyError(f"{key} is not supported by ExtractionConfig")
+        return getattr(self, key, default)
+
+    def __contains__(self, key):
+        return hasattr(self, key)
+
+    def __getitem__(self, key):
+        if key not in ExtractionConfig.all_keys:
+            raise KeyError(f"{key} is not supported by ExtractionConfig")
+        return self.__dict__[key]
+
+    def __setitem__(self, key, val):
+        if key not in ExtractionConfig.all_keys:
+            raise KeyError(f"{key} is not supported by ExtractionConfig")
+        setattr(self, key, val)

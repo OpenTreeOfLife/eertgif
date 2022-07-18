@@ -7,6 +7,7 @@ import json
 from typing import List, Tuple
 from threading import Lock
 import pickle
+import copy
 
 from pdfminer.high_level import LAParams
 from pdfminer.layout import LTChar, LTFigure, LTCurve, LTTextLine, LTTextBox, LTImage
@@ -93,6 +94,17 @@ class ExtractionManager(object):
         self._by_id = {}
         self._filter()
         self._update_by_id_map()
+
+    def set_extract_config(self, extract_cfg):
+        if not isinstance(extract_cfg, ExtractionConfig):
+            extract_cfg = ExtractionConfig(extract_cfg)
+        vis_style = extract_cfg.get("vis_style", {})
+        for k in ExtractionConfig.vs_keys:
+            if k in vis_style:
+                self._cfg.vis_style[k] = copy.deepcopy(vis_style[k])
+        for k in ExtractionConfig.non_vs_keys:
+            if k in extract_cfg:
+                self._cfg[k] = copy.deepcopy(extract_cfg[k])
 
     @property
     def vis_style(self):
@@ -268,14 +280,17 @@ class ExtractionManager(object):
             return self.best_legend.edge_len_scaler
         return None
 
+    def analyze_print_and_return_tree(self):
+        tree = self.analyze()
+        if tree:
+            print(tree.root.get_newick(self.edge_len_scaler))
+        return tree
+
 
 def analyze_figure(fig, params=None, extract_cfg=None):
     unproc_page = find_text_and_curves(fig, params=params)[0]
     extract_mgr = ExtractionManager(unproc_page, extract_cfg=extract_cfg)
-    tree = extract_mgr.analyze()
-    if tree:
-        print(tree.root.get_newick(extract_mgr.edge_len_scaler))
-    return tree
+    extract_mgr.analyze_print_and_return_tree()
 
 
 def my_extract_pages(pdf_file, page_numbers=None):
@@ -356,14 +371,25 @@ def main(fp, config_fp):
 
 
 def do_extraction(fp, extract_cfg):
-    for page_tup in my_extract_pages(fp):
-        page_layout = page_tup[0]
-        figures = [el for el in page_layout if isinstance(el, LTFigure)]
-        if figures:
-            for fig in figures:
-                analyze_figure(fig, extract_cfg=extract_cfg)
+    if fp.endswith(".pdf"):
+        for page_tup in my_extract_pages(fp):
+            page_layout = page_tup[0]
+            figures = [el for el in page_layout if isinstance(el, LTFigure)]
+            if figures:
+                for fig in figures:
+                    analyze_figure(fig, extract_cfg=extract_cfg)
+            else:
+                analyze_figure(page_layout, extract_cfg=extract_cfg)
+    elif fp.endswith(".pickle"):
+        with open(fp, "rb") as pin:
+            obj = pickle.load(pin)
+        if isinstance(obj, UnprocessedRegion):
+            em = ExtractionManager(obj)
         else:
-            analyze_figure(page_layout, extract_cfg=extract_cfg)
+            assert isinstance(obj, ExtractionManager)
+            em = obj
+        em.set_extract_config(extract_cfg)
+        em.analyze_print_and_return_tree()
 
 
 if __name__ == "__main__":
