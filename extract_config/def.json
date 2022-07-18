@@ -1,8 +1,6 @@
 {
-  "vis_style": {
-    "orientation": "right",
-    "display_mode": 0
-  },
+  "orientation": "right",
+  "display_mode": 0,
   "is_rect_shape": false,
   "node_merge_tol": 0.01
 }

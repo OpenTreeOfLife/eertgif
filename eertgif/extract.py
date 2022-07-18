@@ -95,28 +95,23 @@ class ExtractionManager(object):
 
     def set_extract_config(self, extract_cfg):
         extract_cfg = ExtractionConfig(extract_cfg, self._cfg)
-        vis_style = extract_cfg.get("vis_style", {})
-        # log.warning(f"vis_style = {vis_style}")
-        for k in ExtractionConfig.vs_keys:
-            if k in vis_style:
-                self._cfg.vis_style[k] = copy.deepcopy(vis_style[k])
         for k in ExtractionConfig.non_vs_keys:
             if k in extract_cfg:
                 self._cfg[k] = copy.deepcopy(extract_cfg[k])
 
     @property
     def vis_style(self):
-        return self._cfg.vis_style
+        return self._cfg
 
     @property
     def display_mode(self):
-        return self._cfg.vis_style["display_mode"]
+        return self._cfg["display_mode"]
 
     @display_mode.setter
     def display_mode(self, new_dm):
         if not isinstance(new_dm, DisplayMode):
             new_dm = DisplayMode(new_dm)
-        self._cfg.vis_style["display_mode"] = new_dm
+        self._cfg["display_mode"] = new_dm
 
     @property
     def node_merge_tol(self):

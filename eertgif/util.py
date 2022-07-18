@@ -175,53 +175,30 @@ def bbox_to_corners(bbox: Rect) -> Tuple[Tuple[Point, Point]]:
 
 
 class ExtractionConfig(object):
-    vs_keys = ("orientation", "display_mode")
-    non_vs_keys = ("node_merge_tol", "is_rect_shape")
+    non_vs_keys = ("orientation", "display_mode", "node_merge_tol", "is_rect_shape")
     defaults = {
-        "vis_style": {
-            "orientation": "right",
-            "display_mode": DisplayMode.CURVES_AND_TEXT,
-        },
+        "orientation": "right",
+        "display_mode": DisplayMode.CURVES_AND_TEXT,
         "node_merge_tol": 0.01,
         "is_rect_shape": False,
     }
-    all_keys = tuple(["vis_style"] + list(non_vs_keys))
+    all_keys = non_vs_keys
 
     def __init__(self, obj=None, second_level=None):
         if obj is None:
             obj = {}
         if second_level is None:
             second_level = {}
-        defs = ExtractionConfig.defaults
-        v = obj.get("vis_style")
-        vs = second_level.get("vis_style")
-        # log.warning(f"v={v} vs={vs}")
-        if v is None:
-            if vs is None:
-                self.vis_style = dict(ExtractionConfig.defaults["vis_style"])
-            v = vs
-        if v is not None:
-            if (
-                not isinstance(v, dict)
-                or ("orientation" not in v)
-                or ("display_mode" not in v)
-            ):
-                raise ValueError("vis_style must be a dict with the required keys")
-            o = v["orientation"]
-            if not isinstance(o, str) or o not in ["right", "up", "down", "left"]:
-                raise ValueError("vis_style['orientation'] must be left/right/up/down")
-            i = v["display_mode"]
-            if not isinstance(i, DisplayMode):
-                try:
-                    i = DisplayMode(i)
-                except:
-                    raise ValueError(
-                        "vis_style['display_mode'] must be a DisplayMode facet"
-                    )
-            self.vis_style = {}
-            for k in ExtractionConfig.vs_keys:
-                self.vis_style[k] = v[k]
-
+        self._init_set(
+            "orientation",
+            obj,
+            second_level,
+            lambda val: isinstance(val, str)
+            and (val in ["right", "up", "down", "left"]),
+        )
+        self._init_set(
+            "display_mode", obj, second_level, transform=lambda val: DisplayMode(val)
+        )
         self._init_set(
             "node_merge_tol",
             obj,
@@ -232,7 +209,7 @@ class ExtractionConfig(object):
             "is_rect_shape", obj, second_level, lambda val: isinstance(val, bool)
         )
 
-    def _init_set(self, attr, primary, secondary, predicate):
+    def _init_set(self, attr, primary, secondary, predicate=None, transform=None):
         v = primary.get(attr)
         vs = secondary.get(attr)
         if v is None:
@@ -241,8 +218,13 @@ class ExtractionConfig(object):
                 return
             v = vs
         assert v is not None
-        if not predicate(v):
+        if (predicate is not None) and (not predicate(v)):
             raise ValueError("attribute {attr} failed precondition test")
+        if transform is not None:
+            try:
+                v = transform(v)
+            except:
+                raise ValueError("attribute {attr} failed transformation")
         setattr(self, attr, v)
 
     def get(self, key, default=None):
