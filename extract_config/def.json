@@ -1,0 +1,8 @@
+{
+  "vis_style": {
+    "orientation": "right",
+    "is_rect_shape": false,
+    "display_mode": 0
+  },
+  "node_merge_tol": 0.01
+}

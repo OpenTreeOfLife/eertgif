@@ -362,9 +362,9 @@ def main(fp, config_fp):
     if fp == config_fp:
         ec = ExtractionConfig()
     else:
-        with open(fp, "r") as cinp:
+        with open(config_fp, "r") as cinp:
             obj = json.load(cinp)
-            ec = ExtractionConfig(obj)
+        ec = ExtractionConfig(obj)
     return do_extraction(fp, extract_cfg=ec)
 
 
