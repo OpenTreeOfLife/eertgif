@@ -195,6 +195,13 @@ class ExtractionConfig(object):
     }
     all_keys = non_vs_keys
 
+    def dict_for_json(self):
+        d = {}
+        for k in ExtractionConfig.all_keys:
+            d[k] = getattr(self, k)
+        d["display_mode"] = int(d["display_mode"])
+        return d
+
     def __init__(self, obj=None, second_level=None):
         if obj is None:
             obj = {}

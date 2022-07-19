@@ -170,10 +170,22 @@ function detectComponents() {
 		alert("node tolerance for component detection must be a number");
 		return;
 	}
-	var paramList = getSearchParamList();
-	paramList = insertParam("action", "detect_components", paramList);
-	paramList = insertParam("node_merge_tol", valf, paramList);
-	reloadPageWithParamList(paramList);	
+	// var paramList = getSearchParamList();
+	// paramList = insertParam("action", "detect_components", paramList);
+	// paramList = insertParam("node_merge_tol", valf, paramList);
+	// reloadPageWithParamList(paramList);	
+	extract_config.node_merge_tol = valf
+	data = {"action":"detect_components",
+			"config": extract_config,
+		}
+	$.ajax({
+    type: "POST",
+    url: document.location,
+    data: data,
+    success: function() {   
+        location.reload();  
+    }
+});
 }
 
 function add_to_map() {
@@ -196,7 +208,7 @@ function toggleTreeShape() {
 	var dwn= Number(dw);
 	$('#rect_tree_shape_icon').attr("width", dw);
 	$('#diag_tree_shape_icon').attr("width", rw);
-	vis_style.is_rect_shape = rw > dw;
+	extract_config.is_rect_shape = (dw > rw);
 }
 
 function textHiding(checkbx) {
@@ -232,28 +244,35 @@ function rotate_img_90cw(obj) {
 function rotateOrientationClicked() {
 	 rotate_img_90cw($('#rect_tree_shape_icon'));
 	 rotate_img_90cw($('#diag_tree_shape_icon'));
-	 if (vis_style.orientation == "right") {
-	 	vis_style.orientation = "down";
-	 } else if (vis_style.orientation == "down") {
-	 	vis_style.orientation = "left";
-	 } else if (vis_style.orientation == "left") {
-	 	vis_style.orientation = "up";
+	 if (extract_config.orientation == "right") {
+	 	extract_config.orientation = "down";
+	 } else if (extract_config.orientation == "down") {
+	 	extract_config.orientation = "left";
+	 } else if (extract_config.orientation == "left") {
+	 	extract_config.orientation = "up";
 	 } else  {
-	 	vis_style.orientation = "right";
+	 	extract_config.orientation = "right";
 	 }
 }
 
-$(document).ready(function() {
+
+function set_ui_based_on_config(){
 	var rect_el = $('#rect_tree_shape_icon');
 	if (rect_el.length) {
-		var is_rect = vis_style.is_rect_shape;
+		var is_rect = extract_config.is_rect_shape;
 		toggleTreeShape();
-		if (is_rect != vis_style.is_rect_shape) {
+		if (is_rect != extract_config.is_rect_shape) {
 			toggleTreeShape();
 		}
-		while (vis_style.orientation != "right") {
+		while (extract_config.orientation != "right") {
 			rotateOrientationClicked();
 		}
+	}
+	
+}
+$(document).ready(function() {
+	if (extract_config !== null) {
+		set_ui_based_on_config();
 	}
 	$("circle").each(add_to_map);
 	$("path").each(add_to_map);

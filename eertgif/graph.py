@@ -5,8 +5,8 @@ from typing import List, Tuple, Union, Optional
 
 from pdfminer.utils import Point
 from .point_map import PointMap
-from .util import Direction, calc_dist
-from .safe_containers import SafeCurve, SafeTextLine, CurveShape, all_corner_shapes
+from .util import Direction, calc_dist, all_corner_shapes
+from .safe_containers import SafeCurve, SafeTextLine, CurveShape
 
 log = logging.getLogger(__name__)
 

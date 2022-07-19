@@ -185,26 +185,7 @@ class EertgifView:
             top_cont.page_status_list[idx] = validated_stat
         return HTTPFound(f"/view/{tag}?page={page_id}")
 
-    @view_config(route_name="eertgif:extract", renderer="templates/extract.pt")
-    def extract_view(self):
-        tag, page_id = self._get_tag_and_mandatory_page_id()
-        action = self.request.params.get("action")
-        node_merge_tol = None
-        if action is not None:
-            try:
-                assert action in ExtractActions.all
-            except:
-                return HTTPBadRequest(f'action "{action}" is not known.')
-            if action == ExtractActions.DETECT_COMPONENT:
-                node_merge_tol = self.request.params.get("node_merge_tol")
-                if node_merge_tol is not None:
-                    try:
-                        node_merge_tol = float(node_merge_tol)
-                        assert node_merge_tol >= 0.0
-                    except:
-                        return HTTPBadRequest(
-                            f"node_merge_tol must be a positive number"
-                        )
+    def _common_extract(self, tag, page_id):
         study_lock, top_cont = self._get_lock_and_top(tag)
         with study_lock:
             pages = list(top_cont.page_ids)
@@ -250,11 +231,9 @@ class EertgifView:
             else:
                 assert isinstance(obj_for_region, ExtractionManager)
                 em = obj_for_region
+        return study_lock, top_cont, em, status
 
-            if action and action == ExtractActions.DETECT_COMPONENT:
-                em.detect_components(node_merge_tol=node_merge_tol)
-                self._repickle(page_id, em, top_cont)
-                return HTTPFound(location=f"/extract/{tag}?page={page_id}")
+    def _common_extract_return(self, em, tag, page_id, status):
         log.debug(f"em.display_mode = {repr(em.display_mode)}")
         svg = em.as_svg_str()
         d = {
@@ -262,10 +241,58 @@ class EertgifView:
             "region_id": page_id,
             "svg": svg,
             "status": status,
-            "node_merge_tol": em.node_merge_tol,
-            "vis_json": json.dumps(em.vis_style),
+            "cfg_json": json.dumps(em.vis_style.dict_for_json()),
+            "cfg": em.vis_style,
         }
         return d
+
+    @view_config(
+        route_name="eertgif:extract",
+        request_method="POST",
+        renderer="templates/extract.pt",
+    )
+    def extract_view(self):
+        tag, page_id = self._get_tag_and_mandatory_page_id()
+        action = self.request.params.get("action")
+        node_merge_tol = None
+        if action is not None:
+            try:
+                assert action in ExtractActions.all
+            except:
+                return HTTPBadRequest(f'action "{action}" is not known.')
+            if action == ExtractActions.DETECT_COMPONENT:
+                node_merge_tol = self.request.params.get("node_merge_tol")
+                if node_merge_tol is not None:
+                    try:
+                        node_merge_tol = float(node_merge_tol)
+                        assert node_merge_tol >= 0.0
+                    except:
+                        return HTTPBadRequest(
+                            f"node_merge_tol must be a positive number"
+                        )
+        blob = self._common_extract(tag, page_id)
+        if not isinstance(blob, tuple):
+            return blob
+        study_lock, top_cont, em, status = blob
+        with study_lock:
+            if action and action == ExtractActions.DETECT_COMPONENT:
+                em.detect_components(node_merge_tol=node_merge_tol)
+                self._repickle(page_id, em, top_cont)
+                # return HTTPFound(location=f"/extract/{tag}?page={page_id}")
+        return self._common_extract_return(em, tag, page_id, status)
+
+    @view_config(
+        route_name="eertgif:extract",
+        request_method="GET",
+        renderer="templates/extract.pt",
+    )
+    def extract_view(self):
+        tag, page_id = self._get_tag_and_mandatory_page_id()
+        blob = self._common_extract(tag, page_id)
+        if not isinstance(blob, tuple):
+            return blob
+        em, status = blob[-2:]
+        return self._common_extract_return(em, tag, page_id, status)
 
     @view_config(route_name="eertgif:view", renderer="templates/view.pt")
     def edit_view(self):
