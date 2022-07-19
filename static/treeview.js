@@ -178,11 +178,17 @@ function detectComponents() {
 		alert("node tolerance for component detection must be a number");
 		return;
 	}
-	// var paramList = getSearchParamList();
+	var rval = $('#rect_axis_merge_tol').val();
+	var rvalf = Number(rval);
+	if (rval === "" || isNaN(rvalf)) {
+		alert("Rect axis merge tol must be a number");
+		return;
+	}// var paramList = getSearchParamList();
 	// paramList = insertParam("action", "detect_components", paramList);
 	// paramList = insertParam("node_merge_tol", valf, paramList);
 	// reloadPageWithParamList(paramList);	
 	extract_config.node_merge_tol = valf
+	extract_config.rect_base_intercept_tol = rvalf
 	data = {"action":"detect_components",
 			"config": JSON.stringify(extract_config),
 		}
@@ -224,10 +230,40 @@ function textHiding(checkbx) {
 		$( "#treeholder svg text" ).each(function() {
 			$( this ).attr("display", "none")
 		});
+		extract_config.viz_hide_text = true;
 	} else {
 		$( "#treeholder svg text" ).each(function() {
 			$( this ).attr("display", "yes")
 		});
+		extract_config.viz_hide_text = false;
+	}
+}
+
+function nodeHiding(checkbx) {
+	if (checkbx.checked) {
+		$( "#treeholder svg circle" ).each(function() {
+			$( this ).attr("display", "none")
+		});
+		extract_config.viz_hide_nodes = true;
+	} else {
+		$( "#treeholder svg circle" ).each(function() {
+			$( this ).attr("display", "yes")
+		});
+		extract_config.viz_hide_nodes = false;
+	}
+}
+
+function edgeHiding(checkbx) {
+	if (checkbx.checked) {
+		$( "#treeholder svg path" ).each(function() {
+			$( this ).attr("display", "none")
+		});
+		extract_config.viz_hide_edges = true;
+	} else {
+		$( "#treeholder svg path" ).each(function() {
+			$( this ).attr("display", "yes")
+		});
+		extract_config.viz_hide_edges = false;
 	}
 }
 
@@ -276,6 +312,22 @@ function set_ui_based_on_config(){
 			rotateOrientationClicked();
 		}
 	}
+	var he_chkbz = $( '#hide_edges_btn' );
+	if (he_chkbz.length) {
+		he_chkbz.prop('checked', extract_config.viz_hide_edges).trigger("change");
+	}
+	var hn_chkbz = $( '#hide_nodes_btn' );
+	if (hn_chkbz.length) {
+		hn_chkbz.prop('checked', extract_config.viz_hide_nodes).trigger("change");
+	}
+	var ht_chkbz = $( '#hide_text_btn' );
+	if (ht_chkbz.length) {
+		ht_chkbz.prop('checked', extract_config.viz_hide_text).trigger("change");
+	}
+	// var cb_stat = .is(":checked");
+	// if (cb_stat != viz_hide_edges) {
+	// 	edgeHiding
+	// }
 	
 }
 $(document).ready(function() {

@@ -200,6 +200,9 @@ class ExtractionConfig(object):
         "is_rect_shape",
         "node_merge_tol",
         "rect_base_intercept_tol",
+        "viz_hide_text",
+        "viz_hide_nodes",
+        "viz_hide_edges",
     )
     defaults = {
         "orientation": "right",
@@ -207,6 +210,9 @@ class ExtractionConfig(object):
         "node_merge_tol": 0.01,
         "is_rect_shape": False,
         "rect_base_intercept_tol": 0.01,
+        "viz_hide_text": False,
+        "viz_hide_nodes": False,
+        "viz_hide_edges": False,
     }
     all_keys = non_vs_keys
 
@@ -240,9 +246,8 @@ class ExtractionConfig(object):
                 lambda val: (isinstance(val, float) or isinstance(val, int))
                 and val >= 0.0,
             )
-        self._init_set(
-            "is_rect_shape", obj, second_level, lambda val: isinstance(val, bool)
-        )
+        for k in ["is_rect_shape", "viz_hide_text", "viz_hide_nodes", "viz_hide_edges"]:
+            self._init_set(k, obj, second_level, lambda val: isinstance(val, bool))
 
     def _init_set(self, attr, primary, secondary, predicate=None, transform=None):
         v = primary.get(attr)

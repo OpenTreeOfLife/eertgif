@@ -426,11 +426,11 @@ class Forest(object):
         to_grow_list = self.components[min_idx]
         for nd in to_die_list:
             nd.component_idx = min_idx
-            to_grow_list.append(nd)
+            to_grow_list.add(nd)
         self.components.pop(max_idx)
         for to_decr_list in self.components[max_idx:]:
             assert to_decr_list
-            bef_idx = to_decr_list[0].component_idx
+            bef_idx = next(iter(to_decr_list)).component_idx
             new_idx = bef_idx - 1
             for nd in to_decr_list:
                 nd.component_idx = new_idx
