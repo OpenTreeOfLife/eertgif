@@ -234,7 +234,7 @@ class EertgifView:
         return study_lock, top_cont, em, status
 
     def _common_extract_return(self, em, tag, page_id, status):
-        log.debug(f"em.cfg.node_merge_tol = {repr(em.cfg.node_merge_tol)}")
+        # log.debug(f"em.cfg.node_merge_tol = {repr(em.cfg.node_merge_tol)}")
         svg = em.as_svg_str()
         d = {
             "tag": tag,
@@ -252,7 +252,6 @@ class EertgifView:
         renderer="templates/extract.pt",
     )
     def extract_view_post(self):
-        log.debug("POST extract_view")
         tag, page_id = self._get_tag_and_mandatory_page_id()
         action = self.request.POST.get("action")
         cfg_blob = self.request.POST.get("config")
@@ -279,7 +278,7 @@ class EertgifView:
             return blob
         study_lock, top_cont, em, status = blob
         with study_lock:
-            log.debug(f"cfg_blob={cfg_blob}")
+            # log.debug(f"cfg_blob={cfg_blob}")
             if cfg_blob:
                 try:
                     em.set_extract_config(cfg_blob)
@@ -300,7 +299,6 @@ class EertgifView:
         renderer="templates/extract.pt",
     )
     def extract_view_get(self):
-        log.debug("GET extract_view")
         tag, page_id = self._get_tag_and_mandatory_page_id()
         blob = self._common_extract(tag, page_id)
         if not isinstance(blob, tuple):
