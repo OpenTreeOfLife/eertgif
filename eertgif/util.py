@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from enum import IntEnum, Enum
+from enum import IntEnum
 from math import sqrt
 from typing import List, Any, Tuple, Union
 import re
@@ -66,7 +66,7 @@ class DisplayMode(IntEnum):
     PHYLO = 2  # tree has been extracted
 
 
-class Penalty(Enum):
+class Penalty(IntEnum):
     LABEL_GAP_MEAN = 0
     LABEL_GAP_STD_DEV = 1
     UNMATCHED_LABELS = 2
@@ -186,12 +186,19 @@ def bbox_to_corners(bbox: Rect) -> Tuple[Tuple[Point, Point]]:
 
 
 class ExtractionConfig(object):
-    non_vs_keys = ("orientation", "display_mode", "node_merge_tol", "is_rect_shape")
+    non_vs_keys = (
+        "display_mode",
+        "orientation",
+        "is_rect_shape",
+        "node_merge_tol",
+        "rect_base_intercept_tol",
+    )
     defaults = {
         "orientation": "right",
         "display_mode": DisplayMode.CURVES_AND_TEXT,
         "node_merge_tol": 0.01,
         "is_rect_shape": False,
+        "rect_base_intercept_tol": 0.01,
     }
     all_keys = non_vs_keys
 
@@ -217,12 +224,14 @@ class ExtractionConfig(object):
         self._init_set(
             "display_mode", obj, second_level, transform=lambda val: DisplayMode(val)
         )
-        self._init_set(
-            "node_merge_tol",
-            obj,
-            second_level,
-            lambda val: (isinstance(val, float) or isinstance(val, int)) and val >= 0.0,
-        )
+        for k in ["rect_base_intercept_tol", "node_merge_tol"]:
+            self._init_set(
+                k,
+                obj,
+                second_level,
+                lambda val: (isinstance(val, float) or isinstance(val, int))
+                and val >= 0.0,
+            )
         self._init_set(
             "is_rect_shape", obj, second_level, lambda val: isinstance(val, bool)
         )

@@ -151,13 +151,14 @@ class Edge(object):
         """
         Uses effective diganal and shape to find axes.
         returns:
-            False, None  or
-            True, list of lenght 2 of coordinates with variable coord None
+            False, None, None  or
+            True, list of lenght 2 of coordinates with variable coord None, dixt
         """
         c = self.curve
+        false_ret = False, None, None
         if (c.eff_diagonal is None) or (c.shape not in all_corner_shapes):
             # No axis unless a corner
-            return False, None
+            return false_ret
         eff_d1, eff_d2 = c.eff_diagonal
         if axis == AxisDir.VERTICAL:
             cidx = 0
@@ -174,9 +175,10 @@ class Edge(object):
                 ext_fn = max
         ax_const_coord = ext_fn(eff_d1[cidx], eff_d2[cidx])
         pc = point[cidx]
-        if abs(pc - ax_const_coord) > tol:
+        cdist = abs(pc - ax_const_coord)
+        if cdist > tol:
             # constant coord not within TOL
-            return False, None
+            return false_ret
         vidx = 1 - cidx
         ax_var = (eff_d1[vidx], eff_d2[vidx])
         if ax_var[0] > ax_var[1]:
@@ -184,25 +186,27 @@ class Edge(object):
         vc = point[vidx]
         if (ax_var[0] - vc) > tol or (vc - ax_var[1]) > tol:
             # point's variable coord more than TOL outside of the endpoints
-            return False, None
+            return false_ret
         ret_coord = [None, None]
         ret_coord[cidx] = ax_const_coord
         if ax_var[0] < vc < ax_var[1]:
             # const withing TOL, variable witin axis
-            return True, ret_coord
+            return True, ret_coord, cdist
         # variable coordinate outside of axis, but coudl be within TOL
         #   of the endpoints
         ex_point = [None, None]
         ex_point[cidx] = ax_const_coord
         if vc < ax_var[0]:
             ex_point[vidx] = ax_var[0]
-            if calc_dist(point, tuple(ex_point)) <= tol:
-                return True, ret_coord
+            dist = calc_dist(point, tuple(ex_point))
+            if dist <= tol:
+                return True, ret_coord, dist
         elif vc > ax_var[1]:
             ex_point[vidx] = ax_var[1]
-            if calc_dist(point, tuple(ex_point)) <= tol:
-                return True, ret_coord
-        return False, None
+            dist = calc_dist(point, tuple(ex_point))
+            if dist <= tol:
+                return True, ret_coord, dist
+        return false_ret
 
 
 class PlanarContainer(object):
@@ -334,7 +338,7 @@ class GraphFromEdges(object):
             cn1 = edge1.nd1
         else:
             cn1 = edge1.nd2
-        log.warning(f"Force merge cn1={cn1}")
+        log.warning(f"  Force merge cn1={cn1}")
         # find closest node in edge2
         if var_coord[0] is None:
             idx = 1
@@ -346,7 +350,7 @@ class GraphFromEdges(object):
         cn2 = edge2.nd1
         if abs(edge2.nd1[idx] - vc) > abs(edge2.nd1[idx] - vc):
             cn2 = edge2.nd2
-        log.warning(f"Force merge cn2={cn2}")
+        log.warning(f"  Force merge cn2={cn2}")
         # Now remove edge1 from cn1
         cn1.edges.remove(edge1)
         # move other edges attached to that node, and attach them to cn2
@@ -365,10 +369,10 @@ class GraphFromEdges(object):
             if other_edge is not edge1:
                 cn1.edges.remove(other_edge)
         if len(cn1.edges) == 0:
-            log.warning(f"Force merge removing cn1={cn1}")
+            log.warning(f"    Force merge removing cn1={cn1}")
             self.nodes.remove_node(cn1)
         else:
-            log.warning(f"Force merge retaining cn1={cn1}")
+            log.warning(f"    Force merge retaining cn1={cn1}")
 
         self.debug_check()
 
@@ -411,6 +415,26 @@ class Forest(object):
         self.legends = []
         self.id_gen = id_gen
         self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
+        self.rect_base_intercept_tol = None
+
+    def _post_merge_hook(self, edge1, edge2):
+        c1_idx = edge1.component_idx
+        c2_idx = edge2.component_idx
+        assert c1_idx != c2_idx
+        min_idx, max_idx = min(c1_idx, c2_idx), max(c1_idx, c2_idx)
+        to_die_list = self.components[max_idx]
+        to_grow_list = self.components[min_idx]
+        for nd in to_die_list:
+            nd.component_idx = min_idx
+            to_grow_list.append(nd)
+        self.components.pop(max_idx)
+        for to_decr_list in self.components[max_idx:]:
+            assert to_decr_list
+            bef_idx = to_decr_list[0].component_idx
+            new_idx = bef_idx - 1
+            for nd in to_decr_list:
+                nd.component_idx = new_idx
+        return len(self.components)
 
     def interpret_as_legend(self, idx: int, text_lines: List[SafeTextLine]):
         from .phylo import PhyloLegend

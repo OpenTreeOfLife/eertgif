@@ -294,7 +294,11 @@ class PhyloNode(object):
         if csfn is None:
             self.children = list(self._unsorted_children)
             return
-        wip = [(csfn(i), n, i) for n, i in enumerate(self._unsorted_children)]
+        wip = []
+        for n, i in enumerate(self._unsorted_children):
+            # log.warning(f"{n} {i}, {i.vnode}")
+            tup = (csfn(i), n, i)
+            wip.append(tup)
         wip.sort()
         self.children = [i[-1] for i in wip]
 
@@ -343,10 +347,14 @@ class PhyloNode(object):
                 assert nd.par is not None
                 nd._collapse_into_par()
 
-    def root_based_on_par(self, par: PhyloNode = None) -> None:
+    def root_based_on_par(self, par: PhyloNode = None, seen=None) -> None:
+        if seen is None:
+            seen = set()
         pma = self.phy_ctx.attempt
         coord_fn = self.phy_ctx.pos_min_fn
 
+        assert self not in seen
+        seen.add(self)
         self.par = par
         if par is not None:
             self.orig_vedge_to_par = self._adjacent_by_phynode[par]
@@ -357,8 +365,10 @@ class PhyloNode(object):
         for adj in self._adjacent_by_vedge.values():
             if adj is par:
                 continue
+            if adj is self:
+                assert False, "I'm just beside myself"
             self._unsorted_children.append(adj)
-            adj.root_based_on_par(self)
+            adj.root_based_on_par(par=self, seen=seen)
         self.sort_children()
 
     def get_newick(self, edge_len_scaler=None) -> str:

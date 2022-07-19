@@ -234,7 +234,6 @@ class EertgifView:
         return study_lock, top_cont, em, status
 
     def _common_extract_return(self, em, tag, page_id, status):
-        # log.debug(f"em.cfg.node_merge_tol = {repr(em.cfg.node_merge_tol)}")
         svg = em.as_svg_str()
         d = {
             "tag": tag,
@@ -261,16 +260,6 @@ class EertgifView:
                 assert action in ExtractActions.all
             except:
                 return HTTPBadRequest(f'action "{action}" is not known.')
-            if action == ExtractActions.DETECT_COMPONENT:
-                node_merge_tol = self.request.params.get("node_merge_tol")
-                if node_merge_tol is not None:
-                    try:
-                        node_merge_tol = float(node_merge_tol)
-                        assert node_merge_tol >= 0.0
-                    except:
-                        return HTTPBadRequest(
-                            f"node_merge_tol must be a positive number"
-                        )
         if cfg_blob and isinstance(cfg_blob, str):
             cfg_blob = json.loads(cfg_blob)
         blob = self._common_extract(tag, page_id)
@@ -288,7 +277,7 @@ class EertgifView:
                         "Could not set the specified config parameters"
                     )
             if action and action == ExtractActions.DETECT_COMPONENT:
-                em.detect_components(node_merge_tol=node_merge_tol)
+                em.detect_components()
                 self._repickle(page_id, em, top_cont)
                 # return HTTPFound(location=f"/extract/{tag}?page={page_id}")
         return self._common_extract_return(em, tag, page_id, status)

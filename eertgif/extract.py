@@ -117,6 +117,14 @@ class ExtractionManager(object):
     def node_merge_tol(self):
         return self._cfg.node_merge_tol
 
+    @property
+    def is_rect_shape(self):
+        return self._cfg.is_rect_shape
+
+    @property
+    def rect_base_intercept_tol(self):
+        return self._cfg.rect_base_intercept_tol
+
     @node_merge_tol.setter
     def node_merge_tol(self, new_node_merge_tol):
         if (
@@ -235,62 +243,62 @@ class ExtractionManager(object):
     def _new_graph(self):
         """
         Caller must update_map."""
-        nm_tol = self.node_merge_tol
-        self.graph = GraphFromEdges(self, node_merge_tol=nm_tol)
-        first, deferred = [], []
+        self.graph = GraphFromEdges(self, node_merge_tol=self.node_merge_tol)
+        for curve in self.nontext_objs:
+            self.graph.add_curve(curve)
+        log.debug(
+            f"graph with {len(self.graph.nodes._all_nodes)} nodes and {len(self.graph.edges)} edges created."
+        )
 
-        rect_shape = self._cfg.is_rect_shape
+    def merge_component_using_rect_shape_joins(self):
+
+        mergeable = self._find_mergeable_components_rect()
+        for tup in mergeable:
+            e1, most_extreme, e2, coord = tup[2:]
+            if e1.component_idx == e2.component_idx:
+                continue
+            self.graph.force_merge(e1, most_extreme, e2, coord)
+            self.forest._post_merge_hook(e1, e2)
+
+    def _find_mergeable_components_rect(self):
         target_shapes, ext_point_dir = None, None
-        if rect_shape:
-            orientation = self._cfg.orientation
-            if orientation == "right":
-                target_shapes = {CurveShape.CORNER_LL, CurveShape.CORNER_UL}
-                ext_point_dir = Direction.EAST
-                base_axis = AxisDir.VERTICAL
-            elif orientation == "left":
-                target_shapes = {CurveShape.CORNER_LR, CurveShape.CORNER_UR}
-                ext_point_dir = Direction.WEST
-                base_axis = AxisDir.VERTICAL
-            elif orientation == "down":
-                target_shapes = {CurveShape.CORNER_UL, CurveShape.CORNER_UR}
-                ext_point_dir = Direction.SOUTH
-                base_axis = AxisDir.HORIZONTAL
-            else:
-                assert orientation == "up"
-                target_shapes = {CurveShape.CORNER_LL, CurveShape.CORNER_LR}
-                ext_point_dir = Direction.NORTH
-                base_axis = AxisDir.HORIZONTAL
-
-            for curve in self.nontext_objs:
-                dest = first if curve.shape in target_shapes else deferred
-                dest.append(curve)
+        nm_tol = self.rect_base_intercept_tol
+        orientation = self._cfg.orientation
+        if orientation == "right":
+            target_shapes = {CurveShape.CORNER_LL, CurveShape.CORNER_UL}
+            ext_point_dir = Direction.EAST
+            base_axis = AxisDir.VERTICAL
+        elif orientation == "left":
+            target_shapes = {CurveShape.CORNER_LR, CurveShape.CORNER_UR}
+            ext_point_dir = Direction.WEST
+            base_axis = AxisDir.VERTICAL
+        elif orientation == "down":
+            target_shapes = {CurveShape.CORNER_UL, CurveShape.CORNER_UR}
+            ext_point_dir = Direction.SOUTH
+            base_axis = AxisDir.HORIZONTAL
         else:
-            first = self.nontext_objs
+            assert orientation == "up"
+            target_shapes = {CurveShape.CORNER_LL, CurveShape.CORNER_LR}
+            ext_point_dir = Direction.NORTH
+            base_axis = AxisDir.HORIZONTAL
 
-        fedges, dedges = [], []
-        for curve in first:
-            fedges.append(self.graph.add_curve(curve))
-        for curve in deferred:
-            dedges.append(self.graph.add_curve(curve))
-        all_edges = fedges + dedges
-        if not rect_shape:
-            return
-
-        for e1 in fedges:
+        edges = self.graph.edges
+        mergeable = []
+        for e1 in edges:
+            comp_idx = e1.component_idx
             most_extreme = e1.most_extreme_vis_point(ext_point_dir)
-            for e2 in fedges:
+            for e2 in edges:
                 if e2 is e1:
                     continue
-                if (
-                    (e1.nd1 is e2.nd1)
-                    or (e1.nd1 is e2.nd2)
-                    or (e1.nd2 is e2.nd1)
-                    or (e1.nd2 is e2.nd2)
-                ):
+                if e2.component_idx == comp_idx:
                     continue
-                contains, coord = e2.axis_contains(base_axis, most_extreme, nm_tol)
+                contains, coord, dist = e2.axis_contains(
+                    base_axis, most_extreme, nm_tol
+                )
                 if contains:
-                    self.graph.force_merge(e1, most_extreme, e2, coord)
+                    mergeable.append((dist, e1.eertgif_id, e1, most_extreme, e2, coord))
+        mergeable.sort()
+        return mergeable
 
     def detect_components(
         self, node_merge_tol=None, suppress_update_map=False, suppress_filter=False
@@ -306,11 +314,18 @@ class ExtractionManager(object):
             (self.graph is None) or (self.graph.tol != node_merge_tol) or filter_changed
         )
         if new_graph:
-            self.node_merge_tol = node_merge_tol
             self._new_graph()
-        new_forest = self.forest is None or new_graph
-        if new_forest:
-            self.forest = self.graph.build_forest()
+        new_forest = True
+        self.forest = self.graph.build_forest()
+        log.debug(f"{len(self.forest.components)} components detected")
+        if self.is_rect_shape:
+            rbit = self._cfg["rect_base_intercept_tol"]
+            if (
+                self.forest.rect_base_intercept_tol is None
+                or self.forest.rect_base_intercept_tol != rbit
+            ):
+                self.merge_component_using_rect_shape_joins()
+
         if (new_forest or new_graph) and not suppress_update_map:
             self._update_by_id_map()
         if self.display_mode == DisplayMode.CURVES_AND_TEXT:
@@ -357,7 +372,9 @@ class ExtractionManager(object):
 
     def analyze_print_and_return_tree(self):
         tree = self.analyze()
-        if tree:
+        if tree is None:
+            log.debug("tree from analyze is None")
+        else:
             print(tree.root.get_newick(self.edge_len_scaler))
         return tree
 
