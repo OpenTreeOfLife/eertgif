@@ -122,14 +122,13 @@ class PhyloTree(object):
             if len(vals) > 1:
                 num = 1
                 for nd in vals:
-                    nl = f"{label}-duplicate#{num}"
-                    num += 1
-                    if nl not in dup_labels:
-                        nd._label = nl
-                    log.debug(
-                        f'duplicate label. Renaming "{label}" to "{nl}"',
-                        self.pma.messages,
-                    )
+                    while True:
+                        nl = f"{label}-duplicate#{num}"
+                        num += 1
+                        if nl not in dup_labels:
+                            nd._label = nl
+                            break
+                    log.debug(f'duplicate label. Renaming "{label}" to "{nl}"')
 
     def post_order(self):
         if self.root is None:
