@@ -54,7 +54,7 @@ var extract_config = null;
 <div tal:condition="single_item">
     <div tal:condition="status != 'no trees'">
     <script>
-vis_style = JSON.parse('{"orientation": "right", "is_rect_shape": true}');
+extract_config = JSON.parse('{"orientation": "right", "is_rect_shape": true}');
     </script>
         <script src="/static/treeview.js"></script>
         <div id="tree-button-div"><span class="button" onclick="toggleCurveSimplify()"><span>Toggle curve simplification</span></span></div>

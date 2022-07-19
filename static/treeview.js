@@ -176,7 +176,7 @@ function detectComponents() {
 	// reloadPageWithParamList(paramList);	
 	extract_config.node_merge_tol = valf
 	data = {"action":"detect_components",
-			"config": extract_config,
+			"config": JSON.stringify(extract_config),
 		}
 	$.ajax({
     type: "POST",

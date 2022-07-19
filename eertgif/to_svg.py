@@ -204,7 +204,7 @@ def node_as_circle(out, nd, xfn, yfn, styling):
     styling = styling if styling is not None else _def_style
     color, highlight_color = styling.color_for_el(nd)
     edge_refs = ",".join([str(i.eertgif_id) for i in nd.edges])
-    log.debug(f"edge_refs = {edge_refs}")
+    # log.debug(f"edge_refs = {edge_refs}")
     atts = [
         f'cx="{xfn(nd.x)}" cy="{yfn(nd.y)}" ',
         f'r="{styling.circle_size}" ',

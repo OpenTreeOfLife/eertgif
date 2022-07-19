@@ -100,7 +100,7 @@ class ExtractionManager(object):
                 self._cfg[k] = copy.deepcopy(extract_cfg[k])
 
     @property
-    def vis_style(self):
+    def cfg(self):
         return self._cfg
 
     @property

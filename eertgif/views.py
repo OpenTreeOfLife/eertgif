@@ -104,7 +104,7 @@ class ExtractActions:
 
 class EertgifView:
     def __init__(self, request):
-        log.debug(f"{request.url} called")
+        log.debug(f"{request.url} called with {request.method}")
         self.request = request
         settings = self.request.registry.settings
         self.uploads_dir = settings.get("uploads.dir", "scratch")
@@ -234,15 +234,15 @@ class EertgifView:
         return study_lock, top_cont, em, status
 
     def _common_extract_return(self, em, tag, page_id, status):
-        log.debug(f"em.display_mode = {repr(em.display_mode)}")
+        log.debug(f"em.cfg.node_merge_tol = {repr(em.cfg.node_merge_tol)}")
         svg = em.as_svg_str()
         d = {
             "tag": tag,
             "region_id": page_id,
             "svg": svg,
             "status": status,
-            "cfg_json": json.dumps(em.vis_style.dict_for_json()),
-            "cfg": em.vis_style,
+            "cfg_json": json.dumps(em.cfg.dict_for_json()),
+            "cfg": em.cfg,
         }
         return d
 
@@ -251,10 +251,12 @@ class EertgifView:
         request_method="POST",
         renderer="templates/extract.pt",
     )
-    def extract_view(self):
+    def extract_view_post(self):
+        log.debug("POST extract_view")
         tag, page_id = self._get_tag_and_mandatory_page_id()
-        action = self.request.params.get("action")
-        node_merge_tol = None
+        action = self.request.POST.get("action")
+        cfg_blob = self.request.POST.get("config")
+        log.debug(f"post dict: {self.request.POST}")
         if action is not None:
             try:
                 assert action in ExtractActions.all
@@ -270,11 +272,22 @@ class EertgifView:
                         return HTTPBadRequest(
                             f"node_merge_tol must be a positive number"
                         )
+        if cfg_blob and isinstance(cfg_blob, str):
+            cfg_blob = json.loads(cfg_blob)
         blob = self._common_extract(tag, page_id)
         if not isinstance(blob, tuple):
             return blob
         study_lock, top_cont, em, status = blob
         with study_lock:
+            log.debug(f"cfg_blob={cfg_blob}")
+            if cfg_blob:
+                try:
+                    em.set_extract_config(cfg_blob)
+                except:
+                    log.exception(f"problem setting cfg_blob")
+                    raise HTTPBadRequest(
+                        "Could not set the specified config parameters"
+                    )
             if action and action == ExtractActions.DETECT_COMPONENT:
                 em.detect_components(node_merge_tol=node_merge_tol)
                 self._repickle(page_id, em, top_cont)
@@ -286,7 +299,8 @@ class EertgifView:
         request_method="GET",
         renderer="templates/extract.pt",
     )
-    def extract_view(self):
+    def extract_view_get(self):
+        log.debug("GET extract_view")
         tag, page_id = self._get_tag_and_mandatory_page_id()
         blob = self._common_extract(tag, page_id)
         if not isinstance(blob, tuple):
