@@ -29,6 +29,14 @@ class Direction(IntEnum):
     NORTHWEST = 0x09
 
 
+orientation_to_direction = {
+    "left": Direction.WEST,
+    "right": Direction.EAST,
+    "up": Direction.NORTH,
+    "down": Direction.SOUTH,
+}
+
+
 class CurveShape(IntEnum):
     LINE = 0
     CORNER_LL = 1  # └

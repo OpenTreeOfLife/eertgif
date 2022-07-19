@@ -28,6 +28,11 @@ from .safe_containers import SafeTextLine
 log = logging.getLogger(__name__)
 
 
+class CycleDetected(ValueError):
+    def __init__(self, msg):
+        ValueError.__init__(self, msg)
+
+
 class PhyloTree(object):
     def __init__(
         self,
@@ -35,6 +40,7 @@ class PhyloTree(object):
         forest: Forest = None,
         text_lines: List[SafeTextLine] = None,
         id_gen=None,
+        tip_dir=None,
     ):
         self.id_gen = id_gen
         self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
@@ -73,9 +79,10 @@ class PhyloTree(object):
         # print(
         #     f"nodes_bbox = {nodes_bbox} text_bbox={text_bbox} {len(horiz_text)}, {len(vert_text)}"
         # )
+        dir_list = CARDINAL if tip_dir is None else [tip_dir]
         by_dir = [
             self._try_as_tips_to(i, int_nds, ext_nds, horiz_text, vert_text)
-            for i in CARDINAL
+            for i in dir_list
         ]
         min_score, best_attempt = float("inf"), None
         for attempt in by_dir:
@@ -84,6 +91,8 @@ class PhyloTree(object):
                 min_score = s
                 best_attempt = attempt
             # print(f"Attempt score = {attempt.score} from {attempt.penalties}")
+        if best_attempt is None:
+            best_attempt = by_dir[0]
         self.pma = best_attempt
         self.root = best_attempt.root
 
@@ -352,7 +361,8 @@ class PhyloNode(object):
         pma = self.phy_ctx.attempt
         coord_fn = self.phy_ctx.pos_min_fn
 
-        assert self not in seen
+        if self in seen:
+            raise CycleDetected(f"node with edges {self.vnode.edges} in a cycle")
         seen.add(self)
         self.par = par
         if par is not None:
@@ -444,6 +454,8 @@ class PhyloMapAttempt(object):
 
     @property
     def score(self):
+        if self.root is None:
+            return float("inf")
         s = 0.0
         for k, v in self.penalties.items():
             w = self.penalty_weights.get(k, 1.0)
@@ -459,14 +471,19 @@ class PhyloMapAttempt(object):
         tip_labels: List[SafeTextLine],
         label2leaf: Dict[SafeTextLine, Tuple[Node, float]],
     ) -> PhyloNode:
-        node2phyn = self._build_adj(
-            tip_dir=tip_dir,
-            internals=internals,
-            unmatched_lvs=unmatched_lvs,
-            tip_labels=tip_labels,
-            label2leaf=label2leaf,
-        )
-        root = self._root_by_position(tip_dir=tip_dir, node2phyn=node2phyn)
+        try:
+            node2phyn = self._build_adj(
+                tip_dir=tip_dir,
+                internals=internals,
+                unmatched_lvs=unmatched_lvs,
+                tip_labels=tip_labels,
+                label2leaf=label2leaf,
+            )
+            root = self._root_by_position(tip_dir=tip_dir, node2phyn=node2phyn)
+        except CycleDetected:
+            log.exception("cycle detected in tree build_tree_from_tips")
+            self.root = None
+            return None
         for leaf in unmatched_lvs:
             phynd = node2phyn[leaf]
             if phynd is not root:

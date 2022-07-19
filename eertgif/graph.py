@@ -457,7 +457,7 @@ class Forest(object):
             pass
         return t
 
-    def interpret_as_tree(self, idx: int, text_lines: List[SafeTextLine]):
+    def interpret_as_tree(self, idx: int, text_lines: List[SafeTextLine], tip_dir):
         from .phylo import PhyloTree
 
         comp = self.components[idx]
@@ -467,7 +467,11 @@ class Forest(object):
         if t is not None:
             return t
         t = PhyloTree(
-            connected_nodes=comp, forest=self, text_lines=text_lines, id_gen=self.id_gen
+            connected_nodes=comp,
+            forest=self,
+            text_lines=text_lines,
+            id_gen=self.id_gen,
+            tip_dir=tip_dir,
         )
         self.trees[idx] = t
         return t

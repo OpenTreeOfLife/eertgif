@@ -14,7 +14,14 @@ from pdfminer.high_level import LAParams
 from pdfminer.layout import LTChar, LTFigure, LTTextLine, LTTextBox, LTImage
 from .graph import GraphFromEdges
 from .safe_containers import UnprocessedRegion
-from .util import CurveShape, DisplayMode, ExtractionConfig, Direction, AxisDir
+from .util import (
+    CurveShape,
+    DisplayMode,
+    ExtractionConfig,
+    Direction,
+    AxisDir,
+    orientation_to_direction,
+)
 
 log = logging.getLogger("eertgif.extract")
 # Includes some code from pdfminer layout.py
@@ -102,6 +109,14 @@ class ExtractionManager(object):
     @property
     def cfg(self):
         return self._cfg
+
+    @property
+    def orientation(self):
+        return self._cfg.orientation
+
+    @property
+    def orientation_as_direction(self):
+        return orientation_to_direction[self.orientation]
 
     @property
     def display_mode(self):
@@ -263,7 +278,7 @@ class ExtractionManager(object):
     def _find_mergeable_components_rect(self):
         target_shapes, ext_point_dir = None, None
         nm_tol = self.rect_base_intercept_tol
-        orientation = self._cfg.orientation
+        orientation = self.orientation
         if orientation == "right":
             target_shapes = {CurveShape.CORNER_LL, CurveShape.CORNER_UL}
             ext_point_dir = Direction.EAST
@@ -338,7 +353,9 @@ class ExtractionManager(object):
         best_tree, best_score = None, float("inf")
         for n, c in enumerate(self.forest.components):
             if len(c) > 4:
-                tree = self.forest.interpret_as_tree(n, self.text_lines)
+                tree = self.forest.interpret_as_tree(
+                    n, self.text_lines, self.orientation_as_direction
+                )
                 score = tree.score
                 if score < best_score:
                     best_score = score
@@ -382,7 +399,7 @@ class ExtractionManager(object):
 def analyze_figure(fig, params=None, extract_cfg=None):
     unproc_page = find_text_and_curves(fig, params=params)[0]
     extract_mgr = ExtractionManager(unproc_page, extract_cfg=extract_cfg)
-    extract_mgr.analyze_print_and_return_tree()
+    return extract_mgr.analyze_print_and_return_tree()
 
 
 def my_extract_pages(pdf_file, page_numbers=None):
@@ -463,15 +480,18 @@ def main(fp, config_fp):
 
 
 def do_extraction(fp, extract_cfg):
+    rc = 1
     if fp.endswith(".pdf"):
         for page_tup in my_extract_pages(fp):
             page_layout = page_tup[0]
             figures = [el for el in page_layout if isinstance(el, LTFigure)]
             if figures:
                 for fig in figures:
-                    analyze_figure(fig, extract_cfg=extract_cfg)
+                    if analyze_figure(fig, extract_cfg=extract_cfg) is not None:
+                        rc = 0
             else:
-                analyze_figure(page_layout, extract_cfg=extract_cfg)
+                if analyze_figure(page_layout, extract_cfg=extract_cfg) is not None:
+                    rc = 0
     elif fp.endswith(".pickle"):
         with open(fp, "rb") as pin:
             obj = pickle.load(pin)
@@ -482,7 +502,9 @@ def do_extraction(fp, extract_cfg):
             with open(fp, "rb") as pin:
                 em = ExtractionManager.unpickle(pin)
         em.set_extract_config(extract_cfg)
-        em.analyze_print_and_return_tree()
+        if em.analyze_print_and_return_tree() is not None:
+            rc = 0
+    return rc
 
 
 if __name__ == "__main__":
