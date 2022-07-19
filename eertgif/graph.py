@@ -5,7 +5,7 @@ from typing import List, Tuple, Union, Optional
 
 from pdfminer.utils import Point
 from .point_map import PointMap
-from .util import Direction, calc_dist, all_corner_shapes
+from .util import Direction, calc_dist, all_corner_shapes, AxisDir
 from .safe_containers import SafeCurve, SafeTextLine, CurveShape
 
 log = logging.getLogger(__name__)
@@ -53,6 +53,13 @@ class Node(object):
     @property
     def y(self) -> float:
         return self.loc[1]
+
+    def __getitem__(self, idx):
+        if idx == 0 or idx == -2:
+            return self.x
+        if idx == 1 or idx == -1:
+            return self.y
+        raise IndexError(f"{idx} is out of range for a Node/point.")
 
     @property
     def dir_from_adj(self) -> Direction:
@@ -148,7 +155,7 @@ class Edge(object):
             True, list of lenght 2 of coordinates with variable coord None
         """
         c = self.curve
-        if c.eff_diagonal is None or curve.shape not in all_corner_shapes:
+        if (c.eff_diagonal is None) or (c.shape not in all_corner_shapes):
             # No axis unless a corner
             return False, None
         eff_d1, eff_d2 = c.eff_diagonal
@@ -252,6 +259,21 @@ class PlanarContainer(object):
         row_map.setdefault(pty, nd)
         return nd
 
+    def remove_node(self, nd):
+        del_top_key = None
+        for x, row in self.by_x.items():
+            del_y_key = None
+            for y, nd_ref in row.items():
+                if nd_ref is nd:
+                    del_y_key = y
+            if del_y_key:
+                del row[del_y_key]
+            if not row:
+                del_top_key = x
+        if del_top_key is not None:
+            del self.by_x[del_top_key]
+        self._all_nodes.remove(nd)
+
 
 class GraphFromEdges(object):
     def __init__(self, id_gen, node_merge_tol=0.01):
@@ -260,6 +282,28 @@ class GraphFromEdges(object):
         self.tol = node_merge_tol
         self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
         self.id_gen = id_gen
+
+    def debug_check(self):
+        evisited = set()
+        nds_visited = set()
+        for nd in self.nodes._all_nodes:
+            nds_visited.add(nd)
+            for edge in nd.edges:
+                assert (
+                    nd == edge.nd1 or nd == edge.nd2
+                ), f"node{nd.eertgif_id} ({nd}), not in edge {edge.eertgif_id} {str(edge)}"
+                evisited.add(edge)
+        if evisited != self.edges:
+            d = evisited - self.edges
+            if d:
+                assert False, f"Edges {d} visited but not in self.edges"
+            d = self.edges - evisited
+            if d:
+                assert False, f"Edges {d} in self.edges, but not visited."
+
+        for edge in evisited:
+            assert edge.nd1 in nds_visited
+            assert edge.nd2 in nds_visited
 
     def iter_nodes(self):
         return self.nodes.iter_nodes()
@@ -280,6 +324,8 @@ class GraphFromEdges(object):
         edge2,
         var_coord,
     ):
+        self.debug_check()
+        log.warning(f"Force merge {edge1} and {edge2}")
         # find closest node in edge1
         dist_n1_1 = calc_dist(most_extreme_pt_edge1, (edge1.nd1.x, edge1.nd1.y))
         dist_n1_2 = calc_dist(most_extreme_pt_edge1, (edge1.nd2.x, edge1.nd2.y))
@@ -288,6 +334,7 @@ class GraphFromEdges(object):
             cn1 = edge1.nd1
         else:
             cn1 = edge1.nd2
+        log.warning(f"Force merge cn1={cn1}")
         # find closest node in edge2
         if var_coord[0] is None:
             idx = 1
@@ -299,6 +346,7 @@ class GraphFromEdges(object):
         cn2 = edge2.nd1
         if abs(edge2.nd1[idx] - vc) > abs(edge2.nd1[idx] - vc):
             cn2 = edge2.nd2
+        log.warning(f"Force merge cn2={cn2}")
         # Now remove edge1 from cn1
         cn1.edges.remove(edge1)
         # move other edges attached to that node, and attach them to cn2
@@ -309,12 +357,20 @@ class GraphFromEdges(object):
             if cn1 is other_edge.nd1:
                 other_edge.nd1 = cn2
                 if cn1 is other_edge.nd2:
-                    assert other_edge is edge1
                     other_edge.nd2 = cn2
             else:
                 assert cn1 is other_edge.nd2
                 other_edge.nd2 = cn2
             cn2.edges.add(other_edge)
+            if other_edge is not edge1:
+                cn1.edges.remove(other_edge)
+        if len(cn1.edges) == 0:
+            log.warning(f"Force merge removing cn1={cn1}")
+            self.nodes.remove_node(cn1)
+        else:
+            log.warning(f"Force merge retaining cn1={cn1}")
+
+        self.debug_check()
 
     def find_or_insert_node(
         self, point: Point, tol: float = None

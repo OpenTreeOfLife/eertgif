@@ -90,7 +90,7 @@ class ExtractionManager(object):
         self.best_tree = None
         self.best_legend = None
         self._by_id = {}
-        self._filter()
+        self.filter()
         self._update_by_id_map()
 
     def set_extract_config(self, extract_cfg):
@@ -176,7 +176,8 @@ class ExtractionManager(object):
                     for phynd in t.post_order():
                         m[phynd.eertgif_id] = phynd
                 for leg in f.legends:
-                    m[leg.eertgif_id] = leg
+                    if leg is not None:
+                        m[leg.eertgif_id] = leg
         self._by_id = m
 
     @staticmethod
@@ -207,14 +208,29 @@ class ExtractionManager(object):
             self._next_e_id += 1
         return i
 
-    def _filter(self):
+    def filter(self):
+        tl = []
         for line in self._raw_text_lines:
-            self.text_lines.append(line)
+            tl.append(line)
+        tn, no = [], []
         for obj in self._raw_nontext_objs:
-            if obj.shape in _def_filter_shapes:
-                self.trashed_nontext_objs.append(obj)
+            trash = obj.shape in _def_filter_shapes
+            # trash = trash or obj.eertgif_id not in {247, 349, 228, 317}
+            if trash:
+                tn.append(obj)
             else:
-                self.nontext_objs.append(obj)
+                no.append(obj)
+        changed = False
+        if tl != self.text_lines:
+            self.text_lines[:] = tl
+            changed = True
+        if no != self.nontext_objs:
+            changed = True
+            self.nontext_objs[:] = no
+        if tn != self.trashed_nontext_objs:
+            changed = True
+            self.trashed_nontext_objs[:] = tn
+        return changed
 
     def _new_graph(self):
         """
@@ -265,15 +281,30 @@ class ExtractionManager(object):
             for e2 in fedges:
                 if e2 is e1:
                     continue
+                if (
+                    (e1.nd1 is e2.nd1)
+                    or (e1.nd1 is e2.nd2)
+                    or (e1.nd2 is e2.nd1)
+                    or (e1.nd2 is e2.nd2)
+                ):
+                    continue
                 contains, coord = e2.axis_contains(base_axis, most_extreme, nm_tol)
                 if contains:
                     self.graph.force_merge(e1, most_extreme, e2, coord)
 
-    def detect_components(self, node_merge_tol=None, suppress_update_map=False):
+    def detect_components(
+        self, node_merge_tol=None, suppress_update_map=False, suppress_filter=False
+    ):
+        if not suppress_filter:
+            filter_changed = self.filter()
+        else:
+            filter_changed = False
         node_merge_tol = (
             node_merge_tol if node_merge_tol is not None else self.node_merge_tol
         )
-        new_graph = self.graph is None or self.graph.tol != node_merge_tol
+        new_graph = (
+            (self.graph is None) or (self.graph.tol != node_merge_tol) or filter_changed
+        )
         if new_graph:
             self.node_merge_tol = node_merge_tol
             self._new_graph()
@@ -431,7 +462,8 @@ def do_extraction(fp, extract_cfg):
             em = ExtractionManager(obj)
         else:
             assert isinstance(obj, ExtractionManager)
-            em = obj
+            with open(fp, "rb") as pin:
+                em = ExtractionManager.unpickle(pin)
         em.set_extract_config(extract_cfg)
         em.analyze_print_and_return_tree()
 

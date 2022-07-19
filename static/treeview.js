@@ -163,6 +163,14 @@ function mouseOutNode(target) {
 
 var mouseOutEdge = mouseOutNode;
 
+function handleClickOnGraph(target) {
+	var curve_id_str = "null";
+	if (target.hasAttribute("curve_id")) {
+		curve_id_str = target.getAttribute("curve_id");
+	}
+	console.log("clicked on " + target.tagName + " id = " + target.getAttribute("id") + " curve_id = ", curve_id_str);
+}
+
 function detectComponents() {
 	var val = $('#node_tol_input').val();
 	var valf = Number(val);

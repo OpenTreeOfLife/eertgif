@@ -56,6 +56,19 @@ class PointMap:
             raise KeyError(pt)
         return val
 
+    def __delitem__(self, pt):
+        if not isinstance(pt, Pt):
+            pt = Pt(float(pt))
+        if pt in self._items:
+            del self._items[pt]
+            return
+        for jitter in self.jitters:
+            pt_rnd = self._round(pt, jitter)
+            if pt_rnd in self._items:
+                del self._items[pt_rnd]
+                return
+        raise KeyError(str(pt))
+
     def __setitem__(self, pt, val):
         if not isinstance(pt, Pt):
             pt = Pt(float(pt))

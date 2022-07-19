@@ -247,6 +247,7 @@ def curve_as_path(out, curve, xfn, yfn, styling=None, edge=None):
         if node_refs:
             atts.append(f'nodes="{node_refs}"')
         atts.append(f'component="{edge.component_idx}"')
+        atts.append(f'curve_id="{curve.eertgif_id}"')
 
     color, highlight_color = styling.color_for_el(edge)
     # if curve.stroke or plot_as_diag:
@@ -257,6 +258,7 @@ def curve_as_path(out, curve, xfn, yfn, styling=None, edge=None):
     #    atts.append(f'stroke="none"')
     # log.debug(f"curve.fill = {curve.fill} curve.non_stroking_color = {curve.non_stroking_color}")
     filling = curve.non_stroking_color and curve.non_stroking_color != (0, 0, 0)
+    atts.append('onclick="handleClickOnGraph(evt.target);"')
     atts.append('onmouseover="mouseOverEdge(evt.target);"')
     atts.append('onmouseout="mouseOutEdge(evt.target);"')
     atts.extend([f'stroke="{color}"', f'nhscolor="{color}"'])
