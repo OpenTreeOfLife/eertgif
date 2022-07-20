@@ -147,12 +147,17 @@ function mouseOutNode(target) {
 
 var mouseOutEdge = mouseOutNode;
 
-function handleClickOnGraph(target) {
+function handleClickOnGraph(evt) {
+	var target = evt.target;
 	var curve_id_str = "null";
 	if (target.hasAttribute("curve_id")) {
 		curve_id_str = target.getAttribute("curve_id");
 	}
-	console.log("clicked on " + target.tagName + " id = " + target.getAttribute("id") + " curve_id = ", curve_id_str);
+	var pref = "Clicked";
+	if (evt.getModifierState("Control")) {
+		pref = "Control-clicked"
+	}
+	console.log(pref + " on " + target.tagName + " id = " + target.getAttribute("id") + " curve_id = ", curve_id_str);
 }
 
 function detectComponents() {
@@ -336,11 +341,72 @@ function set_ui_based_on_config(){
 	// }
 	
 }
+
+/////////////////////////////////////////////////////
+// svg-drag-select code:
+function strictIntersectionSelector(context) {
+  const dragAreaInSvgCoordinate = context.dragAreaInSvgCoordinate
+  return context.getIntersections().filter(function (element) {
+    if (context.pointerEvent.target === element) {
+      return true
+    }
+    if (!(element instanceof SVGPathElement)) {
+      // strictly check only <path>s.
+      return true
+    }
+    for (let i = 0, len = element.getTotalLength(); i <= len; i += 4 /* arbitrary */) {
+      const point = element.getPointAtLength(i)
+      const x = point.x
+      const y = point.y
+      if (
+          dragAreaInSvgCoordinate.x <= x && x <= dragAreaInSvgCoordinate.x + dragAreaInSvgCoordinate.width &&
+          dragAreaInSvgCoordinate.y <= y && y <= dragAreaInSvgCoordinate.y + dragAreaInSvgCoordinate.height
+      ) {
+        return true
+      }
+    }
+    return false
+  })
+}
+
+var svgDragSelectOptions = {
+  svg: document.getElementsByTagName('svg')[0],
+  // onSelectionStart: function (selectionStart) {
+  //   console.log("onSelectionStart", selectionStart)
+  //   const selectedElements = selectionStart.svg.querySelectorAll('[data-selected]')
+  //   for (let i = 0; i < selectedElements.length; i++) {
+  //     selectedElements[i].removeAttribute('data-selected')
+  //   }
+  //   document.getElementById('selected-items').value = ''
+  // },
+  // onSelectionEnd: function (selectionEnd) {
+  //   console.log("onSelectionEnd", selectionEnd)
+  // },
+  // onSelectionChange: function (selectionChange) {
+  //   console.log("onSelectionChange", selectionChange)
+  //   selectionChange.newlyDeselectedElements.forEach(function (element) {
+  //     element.removeAttribute('data-selected')
+  //   })
+  //   selectionChange.newlySelectedElements.forEach(function (element) {
+  //     element.setAttribute('data-selected', '')
+  //   })
+  //   document.getElementById('selected-items').value = selectionChange.selectedElements
+  //     .map(function (element) { return element.getAttribute('data-name') })
+  //     .sort()
+  //     .join('\n')
+  // },
+  // selector: strictIntersectionSelector
+}
+
+
 $(document).ready(function() {
 	if (extract_config !== null) {
 		set_ui_based_on_config();
 	}
 	$("circle").each(add_to_map);
 	$("path").each(add_to_map);
+
+	window.svgDragSelect(svgDragSelectOptions);
+//	window.svgDragSelectOptions.svg.style.visibility = 'visible';
 })
 ;

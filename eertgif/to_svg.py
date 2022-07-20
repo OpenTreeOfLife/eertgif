@@ -258,7 +258,7 @@ def curve_as_path(out, curve, xfn, yfn, styling=None, edge=None):
     #    atts.append(f'stroke="none"')
     # log.debug(f"curve.fill = {curve.fill} curve.non_stroking_color = {curve.non_stroking_color}")
     filling = curve.non_stroking_color and curve.non_stroking_color != (0, 0, 0)
-    atts.append('onclick="handleClickOnGraph(evt.target);"')
+    atts.append('onclick="handleClickOnGraph(evt);"')
     atts.append('onmouseover="mouseOverEdge(evt.target);"')
     atts.append('onmouseout="mouseOutEdge(evt.target);"')
     atts.extend([f'stroke="{color}"', f'nhscolor="{color}"'])

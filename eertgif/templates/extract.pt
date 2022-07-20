@@ -5,7 +5,7 @@
     <link rel="stylesheet" type="text/css" href="/static/eertgif.css" />
 </head>
 <body>
-<script src="/static/jquery-3.6.0.min.js"></script>
+
 
 <h2>Guiding extraction of tree from region ${region_id} of study "${tag}"</h2>
 
@@ -16,7 +16,6 @@
 var extract_config = null;
 extract_config = ${cfg_json};
     </script>
-    <script src="/static/treeview.js"></script>
     <div id="tree_button_div">
         <strong>Viz:</strong>&nbsp;
         <input type="checkbox" id="simplify_paths_btn"  name="simplify_paths_btn" onchange="toggleCurveSimplify(this)"><label for="simplify_paths_btn">Simplify paths</label>&nbsp;
@@ -50,6 +49,10 @@ extract_config = ${cfg_json};
 <p>When done with this tree you can go back to <a href="/view/${tag}?page=${region_id}">view mode</a>.</p>
 <hr />
 
+<script src="/static/svg-drag-select-0.4.2.js"></script>
+<script src="/static/jquery-3.6.0.min.js"></script>
+<script src="/static/treeview.js"></script>
+    
 
 </body>
 </html>

@@ -2,6 +2,10 @@ The Pt and PointMap classes
 were written by Ned Batchelder, see
 https://nedbatchelder.com/blog/201707/finding_fuzzy_floats.html
 
+jQuery:
+
+svg-drag-select under WTFPL from https://github.com/luncheon/svg-drag-select
+
 Other code:
 
 Copyright (c) 2022 Mark T. Holder

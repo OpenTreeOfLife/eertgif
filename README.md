@@ -11,3 +11,5 @@ with an image of a tree in it.
   * See attribution in `Pt` and `PointMap` classes to Ned Batchelder's 
     [blog post](https://nedbatchelder.com/blog/201707/finding_fuzzy_floats.html)
     about a dict implementation that maps close floats to the same key
+  * jQuery see https://jquery.org/license/
+  * svg-drag-select https://github.com/luncheon/svg-drag-select
