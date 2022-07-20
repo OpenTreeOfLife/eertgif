@@ -406,7 +406,7 @@ $(document).ready(function() {
 	$("circle").each(add_to_map);
 	$("path").each(add_to_map);
 
-	window.svgDragSelect(svgDragSelectOptions);
+	//window.svgDragSelect(svgDragSelectOptions);
 //	window.svgDragSelectOptions.svg.style.visibility = 'visible';
 })
 ;

@@ -4,7 +4,13 @@ import logging
 import re
 from typing import Tuple, Optional
 
-from pdfminer.layout import LTChar, LTTextLineHorizontal, LTTextLineVertical, LTAnno
+from pdfminer.layout import (
+    LTChar,
+    LTTextLineHorizontal,
+    LTTextLineVertical,
+    LTAnno,
+    LTRect,
+)
 from pdfminer.utils import Point
 from .point_map import PointMap
 from .util import (
@@ -15,6 +21,7 @@ from .util import (
     CurveShape,
     DisplayMode,
     corners_order,
+    BOX_TO_LINE_TOL,
 )
 
 log = logging.getLogger(__name__)
@@ -46,6 +53,7 @@ class SafeCurve(object):
         self.stroke = bool(lt_curve.stroke)
         self.fill = bool(lt_curve.fill)
         self.evenodd = bool(lt_curve.evenodd)
+        self.was_rect = isinstance(lt_curve, LTRect)
         if lt_curve.stroking_color is None:
             self.stroking_color = None
         else:
@@ -65,7 +73,20 @@ class SafeCurve(object):
         return self.x0, self.y0, self.x1, self.y1
 
     def _diagnose_shape(
-        self, in_corner_tol: float = CORNER_TOL
+        self,
+        in_corner_tol: float = CORNER_TOL,
+        max_dim_non_line_like: float = BOX_TO_LINE_TOL,
+    ):
+        x = self._diagnose_shape(
+            in_corner_tol=in_corner_tol, max_dim_non_line_like=max_dim_non_line_like
+        )
+        self.shape, self.eff_diagonal = x
+        return self.shape
+
+    def _diagnose_shape(
+        self,
+        in_corner_tol: float = CORNER_TOL,
+        max_dim_non_line_like: float = BOX_TO_LINE_TOL,
     ) -> Tuple[CurveShape, Optional[Tuple[Point, Point]]]:
         """called to fill in the "shape" attribute from bbox and points.
 
@@ -77,52 +98,131 @@ class SafeCurve(object):
         if len(pts) == 2:
             return CurveShape.LINE, (pts[0], pts[1])
         corners = bbox_to_corners(self.bbox)
-        is_corner_shaped, shape, eff_dir = _diagnose_corner_shaped(
-            pts, corners, in_corner_tol=in_corner_tol
+        is_corner_shaped, shape, eff_dir = self._diagnose_corner_shaped(
+            pts,
+            corners,
+            in_corner_tol=in_corner_tol,
+            max_dim_non_line_like=max_dim_non_line_like,
         )
         if is_corner_shaped or (shape in {CurveShape.DOT, CurveShape.LINE_LIKE}):
             return shape, eff_dir
         return _diagnose_line_like_not_cornered(pts, corners)
 
-
-def _diagnose_corner_shaped(pts, corners, in_corner_tol=CORNER_TOL):
-    all_close_to_corner = True
-    closest_corners = set()
-    max_dist = float("inf")
-    for pt in pts:
-        closest_dir = None
-        closest_dist = max_dist
-        for n, c in enumerate(corners):
-            d = calc_dist(pt, c)
-            if d <= in_corner_tol and d < closest_dist:
-                closest_dist = d
-                closest_dir = corners_order[n]
-        if closest_dir is None:
-            return False, None, None
+    def _find_eff_diagnonal_for_small_dim_line_like(self, pts, corners):
+        """Helper for _diagnose_corner_shaped called with width or height is tiny.
+        
+        for a very narrow (or short) L-shaped curves it can be hard to diagnose shape.
+        For example, if the shape traces a L with some width, it is possible that there
+        will a point closest to each corner of the bounding box. Barring implementing
+        a full fill-algorithm, we may be able to succeed by just diagnosing the general
+        direction of the shape. 
+        Here (for non-LTRect shapes) we average the coordinate for 2 halves of the box
+        to decide the effective diagonal.
+        """
+        if self.was_rect:
+            # effective_diagonal is not a diagonal in these cases!
+            # it is the average of the narrower dimension, so that a long thin
+            #   box, loooks like a line down its mid-line.
+            if self.width < self.height:
+                x = (corners[1][0] + corners[2][0]) / 2.0
+                first = (x, corners[0][1])
+                second = (x, corners[1][1])
+            else:
+                y = (corners[1][1] + corners[0][1]) / 2.0
+                first = (corners[0][0], y)
+                second = (corners[2][0], y)
+            return False, CurveShape.LINE_LIKE, (first, second)
+        if self.width < self.height:
+            cutoff = (corners[1][1] + corners[0][1]) / 2
+            idx, other_idx = 1, 0
         else:
-            closest_corners.add(closest_dir)
-    if len(closest_corners) == 4:
-        return False, CurveShape.COMPLICATED, None
-    if len(closest_corners) == 1:
-        # might happen due to dots with rounding error preferring same corner?
-        cc = next(iter(closest_corners))
-        idx = corners_order.index(cc)
-        cp = corners[idx]
-        return False, CurveShape.DOT, None, (cp, cp)
-    if len(closest_corners) == 3:
-        if CurveShape.CORNER_LR not in closest_corners:
-            return True, CurveShape.CORNER_UL, (corners[0], corners[2])
-        if CurveShape.CORNER_LL not in closest_corners:
-            return True, CurveShape.CORNER_UR, (corners[1], corners[3])
-        if CurveShape.CORNER_UR not in closest_corners:
-            return True, CurveShape.CORNER_LL, (corners[1], corners[3])
-        assert CurveShape.CORNER_UL not in closest_corners
-        return True, CurveShape.CORNER_LR, (corners[0], corners[2])
-    assert len(closest_corners) == 2
-    # all points close to corner, but
-    first, second = list(closest_corners)
-    fidx, sidx = corners_order.index(first), corners_order.index(second)
-    return False, CurveShape.LINE_LIKE, (corners[fidx], corners[sidx])
+            cutoff = (corners[1][0] + corners[2][0]) / 2
+            idx, other_idx = 0, 1
+
+        sum_smaller, n_s = 0.0, 0
+        sum_larger, n_l = 0.0, 0
+        for pt in pts:
+            if pt[idx] > cutoff:
+                sum_larger += pt[other_idx]
+                n_l += 1
+            else:
+                sum_smaller += pt[other_idx]
+                n_s += 1
+        if n_s == 0 or n_l == 0:
+            # shouldn't happen... use lower_left to upper right
+            first, second = corners[1], corners[3]
+        else:
+            mean_smaller = sum_smaller / n_s
+            mean_larger = sum_larger / n_l
+            if mean_smaller > mean_larger:
+                if self.width < self.height:
+                    # mean X of smaller Y is larger, so upper_left to lower_right
+                    first, second = corners[1], corners[3]
+                else:
+                    # mean Y of smaller X is larger, so upper_right to lower_left
+                    first, second = corners[0], corners[2]
+            else:
+                if self.width < self.height:
+                    # mean X of smaller Y is larger, so upper_right to lower_left
+                    first, second = corners[0], corners[2]
+                else:
+                    # mean Y of smaller X is larger, so upper_left to lower_right
+                    first, second = corners[1], corners[3]
+        return False, CurveShape.LINE_LIKE, (first, second)
+
+    def _diagnose_corner_shaped(
+        self,
+        pts,
+        corners,
+        in_corner_tol=CORNER_TOL,
+        max_dim_non_line_like=BOX_TO_LINE_TOL,
+    ):
+        all_close_to_corner = True
+        closest_corners = set()
+        max_dist = float("inf")
+
+        # log.debug(f"corners = {corners}")
+        for pt in pts:
+            closest_dir = None
+            closest_dist = max_dist
+            for n, c in enumerate(corners):
+                d = calc_dist(pt, c)
+                if d <= in_corner_tol and d < closest_dist:
+                    closest_dist = d
+                    closest_dir = corners_order[n]
+            if closest_dir is None:
+                return False, None, None
+            else:
+                closest_corners.add(closest_dir)
+            # log.debug(f"pt={pt}, closest_dir={closest_dir}")
+        # log.debug(f"closest_corners = {closest_corners}")
+        if len(closest_corners) == 4:
+            if (
+                self.width < max_dim_non_line_like
+                or self.height < max_dim_non_line_like
+            ):
+                return self._find_eff_diagnonal_for_small_dim_line_like(pts, corners)
+            return False, CurveShape.COMPLICATED, None
+        if len(closest_corners) == 1:
+            # might happen due to dots with rounding error preferring same corner?
+            cc = next(iter(closest_corners))
+            idx = corners_order.index(cc)
+            cp = corners[idx]
+            return False, CurveShape.DOT, None, (cp, cp)
+        if len(closest_corners) == 3:
+            if CurveShape.CORNER_LR not in closest_corners:
+                return True, CurveShape.CORNER_UL, (corners[0], corners[2])
+            if CurveShape.CORNER_LL not in closest_corners:
+                return True, CurveShape.CORNER_UR, (corners[1], corners[3])
+            if CurveShape.CORNER_UR not in closest_corners:
+                return True, CurveShape.CORNER_LL, (corners[1], corners[3])
+            assert CurveShape.CORNER_UL not in closest_corners
+            return True, CurveShape.CORNER_LR, (corners[0], corners[2])
+        assert len(closest_corners) == 2
+        # all points close to corner, but
+        first, second = list(closest_corners)
+        fidx, sidx = corners_order.index(first), corners_order.index(second)
+        return False, CurveShape.LINE_LIKE, (corners[fidx], corners[sidx])
 
 
 def _diagnose_line_like_not_cornered(pts, corners):

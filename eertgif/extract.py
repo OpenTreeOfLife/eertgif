@@ -255,7 +255,9 @@ class ExtractionManager(object):
         for obj in self._raw_nontext_objs:
             trash = obj.shape in _def_filter_shapes
             if trash:
-                log.debug(f"filtering out {obj.__dict__}")
+                # log.debug(f"filtering out {obj.__dict__}")
+                # if obj.eertgif_id == 329:
+                #    obj._diagnose_shape()
                 tn.append(obj)
             else:
                 no.append(obj)

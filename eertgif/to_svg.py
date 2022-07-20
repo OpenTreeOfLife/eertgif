@@ -44,10 +44,13 @@ class SVGStyling:
     def __init__(self):
         self.comp_idx2color = {}
 
-    def color_for_el(self, el=None):
+    def color_for_el(self, el=None, is_trashed=False):
         def_color = "grey"
+        def_trashed = "cyan"
         def_highlight_color = "red"
         highlight_color = def_highlight_color
+        if is_trashed:
+            return def_trashed, highlight_color
         if el is None:
             return def_color, highlight_color
         color = self.comp_idx2color.get(el.component_idx, def_color)
@@ -89,7 +92,7 @@ def to_svg(out, obj_container=None, styling=None):
     height = cbb[3] - cbb[1]
     width = cbb[2] - cbb[0]
     xfn = lambda x: x - cbb[0]
-    yfn = lambda y: cbb[3] - y  # pdf y=0 is bottom, but svg is top
+    yfn = lambda y: cbb[3] - y  # pdf y=0 is bottom, but in svg it is is top
 
     min_dim = min(height, width)
     out.write(
@@ -139,6 +142,12 @@ def to_svg(out, obj_container=None, styling=None):
             nd_list = tup[-1]
             for nd in nd_list:
                 node_as_circle(out, nd, xfn, yfn, styling=styling)
+
+        for curve in obj_container.trashed_nontext_objs:
+            if isinstance(curve, SafeCurve):
+                curve_as_path(out, curve, xfn, yfn, styling=styling, is_trashed=True)
+            else:
+                log.debug(f"Skipping {curve} in SVG export...\n")
 
     # log.debug(f"obj_container.text_lines = {obj_container.nontext_objs}")
     for n, text in enumerate(obj_container.text_lines):
@@ -224,7 +233,7 @@ def node_as_circle(out, nd, xfn, yfn, styling):
     out.write(s)
 
 
-def curve_as_path(out, curve, xfn, yfn, styling=None, edge=None):
+def curve_as_path(out, curve, xfn, yfn, styling=None, edge=None, is_trashed=False):
     styling = styling if styling is not None else _def_style
     plot_as_diag = curve.eff_diagonal is not None
     full_coord_pairs = [f"{xfn(i[0])} {yfn(i[1])}" for i in curve.pts]
@@ -249,7 +258,7 @@ def curve_as_path(out, curve, xfn, yfn, styling=None, edge=None):
         atts.append(f'component="{edge.component_idx}"')
         atts.append(f'curve_id="{curve.eertgif_id}"')
 
-    color, highlight_color = styling.color_for_el(edge)
+    color, highlight_color = styling.color_for_el(edge, is_trashed=is_trashed)
     # if curve.stroke or plot_as_diag:
     if curve.linewidth:
         atts.append(f'stroke-width="{curve.linewidth}"')

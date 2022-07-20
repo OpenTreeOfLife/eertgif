@@ -66,6 +66,7 @@ class AxisDir(IntEnum):
 
 
 CARDINAL = (Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST)
+BOX_TO_LINE_TOL = 4.0
 
 
 class DisplayMode(IntEnum):
@@ -204,7 +205,8 @@ class ExtractionConfig(object):
             "component-only",
         ),
     }
-    non_bool_keys = ("display_mode", "node_merge_tol", "rect_base_intercept_tol")
+    non_bool_keys = ("display_mode",)
+    tol_keys = ("box_to_line_tol", "node_merge_tol", "rect_base_intercept_tol")
     bool_keys = (
         "is_rect_shape",
         "viz_hide_text",
@@ -215,16 +217,22 @@ class ExtractionConfig(object):
     defaults = {
         "orientation": "right",
         "display_mode": DisplayMode.CURVES_AND_TEXT,
-        "node_merge_tol": 0.01,
         "is_rect_shape": False,
+        "box_to_line_tol": BOX_TO_LINE_TOL,  # used in SafeCurve diagnose_shape
         "rect_base_intercept_tol": 0.01,
+        "node_merge_tol": 0.01,
         "viz_hide_text": False,
         "viz_hide_nodes": False,
         "viz_hide_edges": False,
         "viz_highlight_mode": "element",
         "viz_simplify_curves": False,
     }
-    all_keys = tuple(list(choice_dict.keys()) + list(non_bool_keys) + list(bool_keys))
+    all_keys = tuple(
+        list(choice_dict.keys())
+        + list(non_bool_keys)
+        + list(tol_keys)
+        + list(bool_keys)
+    )
 
     def dict_for_json(self):
         d = {}
@@ -248,7 +256,7 @@ class ExtractionConfig(object):
         self._init_set(
             "display_mode", obj, second_level, transform=lambda val: DisplayMode(val)
         )
-        for k in ["rect_base_intercept_tol", "node_merge_tol"]:
+        for k in ExtractionConfig.tol_keys:
             self._init_set(
                 k,
                 obj,
