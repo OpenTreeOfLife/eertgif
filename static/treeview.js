@@ -40,23 +40,7 @@ function reloadPageWithParamList(paramList) {
 }
 /////////////////////////////////////////////////////////////////
 
-function toggleCurveSimplify() {
-	if ( $( "#path_desc" ).text() == "simplified") {
-		$( "#path_desc" ).text("connected points");
-		$( "#simplify_btn_text" ).text("Simplify");
-	} else {
-		$( "#path_desc" ).text("simplified");
-		$( "#simplify_btn_text" ).text("Connect points");	
-	}
-	$('#treeholder svg path').each(function(){
-	var dv = $( this ).attr("d");
-	var adv =  $( this ).attr("alt_d");
-	if (adv) {
-		$( this ).attr("d", adv);
-		$( this ).attr("alt_d", dv);
-	}
- });
-}
+
 
 
 function colorElIfNHColorNonNone(el, stroke_color, fill_color) {
@@ -183,12 +167,14 @@ function detectComponents() {
 	if (rval === "" || isNaN(rvalf)) {
 		alert("Rect axis merge tol must be a number");
 		return;
-	}// var paramList = getSearchParamList();
+	}
+	// var paramList = getSearchParamList();
 	// paramList = insertParam("action", "detect_components", paramList);
 	// paramList = insertParam("node_merge_tol", valf, paramList);
 	// reloadPageWithParamList(paramList);	
 	extract_config.node_merge_tol = valf
 	extract_config.rect_base_intercept_tol = rvalf
+	extract_config.viz_highlight_mode = $('#highlight_mode').val();
 	data = {"action":"detect_components",
 			"config": JSON.stringify(extract_config),
 		}
@@ -267,6 +253,22 @@ function edgeHiding(checkbx) {
 	}
 }
 
+function toggleCurveSimplify(target) {
+	if (target.checked) {
+		extract_config.viz_simplify_curves = true;
+	} else {
+		extract_config.viz_simplify_curves = false;
+	}
+	$('#treeholder svg path').each(function(){
+		var dv = $( this ).attr("d");
+		var adv =  $( this ).attr("alt_d");
+		if (adv) {
+			$( this ).attr("d", adv);
+			$( this ).attr("alt_d", dv);
+		}
+	 });
+}
+
 // modified from https://stackoverflow.com/questions/20061774/rotate-an-image-in-image-source-in-html
 function rotate_img_90cw(obj) {
     var deg = obj.data('rotate') || 0;
@@ -324,6 +326,10 @@ function set_ui_based_on_config(){
 	if (ht_chkbz.length) {
 		ht_chkbz.prop('checked', extract_config.viz_hide_text).trigger("change");
 	}
+	if (!extract_config.viz_simplify_curves) {
+		$( '#simplify_paths_btn' ).prop('checked', false).trigger("change");
+	}
+	$( "#highlight_mode").val(extract_config.viz_highlight_mode).trigger("change");
 	// var cb_stat = .is(":checked");
 	// if (cb_stat != viz_hide_edges) {
 	// 	edgeHiding

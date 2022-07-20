@@ -102,7 +102,7 @@ class ExtractionManager(object):
 
     def set_extract_config(self, extract_cfg):
         extract_cfg = ExtractionConfig(extract_cfg, self._cfg)
-        for k in ExtractionConfig.non_vs_keys:
+        for k in ExtractionConfig.all_keys:
             if k in extract_cfg:
                 self._cfg[k] = copy.deepcopy(extract_cfg[k])
 

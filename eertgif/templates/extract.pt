@@ -18,7 +18,8 @@ extract_config = ${cfg_json};
     </script>
     <script src="/static/treeview.js"></script>
     <div id="tree_button_div">
-        <strong>Viz:</strong> Path view: <span id="path_desc">simplified</span> <span id="simplify_btn" class="button" onclick="toggleCurveSimplify()"><span><span id="simplify_btn_text">Connect points</span></span></span>&nbsp;
+        <strong>Viz:</strong>&nbsp;
+        <input type="checkbox" id="simplify_paths_btn"  name="simplify_paths_btn" onchange="toggleCurveSimplify(this)"><label for="simplify_paths_btn">Simplify paths</label>&nbsp;
         <input type="checkbox" id="hide_text_btn"  name="hide_text_btn" onchange="textHiding(this)"><label for="hide_text_btn">Hide text</label>&nbsp;
         <input type="checkbox" id="hide_nodes_btn" name="hide_nodes_btn" onchange="nodeHiding(this)"><label for="hide_nodes_btn">Hide Nodes</label>&nbsp;
         <input type="checkbox" id="hide_edges_btn" name="hide_edges_btn" onchange="edgeHiding(this)"><label for="hide_edges_btn">Hide Edges</label>&nbsp;

@@ -194,15 +194,23 @@ def bbox_to_corners(bbox: Rect) -> Tuple[Tuple[Point, Point]]:
 
 
 class ExtractionConfig(object):
-    non_vs_keys = (
-        "display_mode",
-        "orientation",
+    choice_dict = {
+        "orientation": ("right", "up", "down", "left"),
+        "viz_highlight_mode": (
+            "element",
+            "neighbors",
+            "neighbors-only",
+            "component",
+            "component-only",
+        ),
+    }
+    non_bool_keys = ("display_mode", "node_merge_tol", "rect_base_intercept_tol")
+    bool_keys = (
         "is_rect_shape",
-        "node_merge_tol",
-        "rect_base_intercept_tol",
         "viz_hide_text",
         "viz_hide_nodes",
         "viz_hide_edges",
+        "viz_simplify_curves",
     )
     defaults = {
         "orientation": "right",
@@ -213,8 +221,10 @@ class ExtractionConfig(object):
         "viz_hide_text": False,
         "viz_hide_nodes": False,
         "viz_hide_edges": False,
+        "viz_highlight_mode": "element",
+        "viz_simplify_curves": False,
     }
-    all_keys = non_vs_keys
+    all_keys = tuple(list(choice_dict.keys()) + list(non_bool_keys) + list(bool_keys))
 
     def dict_for_json(self):
         d = {}
@@ -228,13 +238,13 @@ class ExtractionConfig(object):
             obj = {}
         if second_level is None:
             second_level = {}
-        self._init_set(
-            "orientation",
-            obj,
-            second_level,
-            lambda val: isinstance(val, str)
-            and (val in ["right", "up", "down", "left"]),
-        )
+        for key, choices in ExtractionConfig.choice_dict.items():
+            self._init_set(
+                key,
+                obj,
+                second_level,
+                lambda val: isinstance(val, str) and (val in choices),
+            )
         self._init_set(
             "display_mode", obj, second_level, transform=lambda val: DisplayMode(val)
         )
@@ -246,7 +256,7 @@ class ExtractionConfig(object):
                 lambda val: (isinstance(val, float) or isinstance(val, int))
                 and val >= 0.0,
             )
-        for k in ["is_rect_shape", "viz_hide_text", "viz_hide_nodes", "viz_hide_edges"]:
+        for k in ExtractionConfig.bool_keys:
             self._init_set(k, obj, second_level, lambda val: isinstance(val, bool))
 
     def _init_set(self, attr, primary, secondary, predicate=None, transform=None):
