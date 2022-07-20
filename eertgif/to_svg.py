@@ -259,6 +259,8 @@ def curve_as_path(out, curve, xfn, yfn, styling=None, edge=None, is_trashed=Fals
         atts.append(f'curve_id="{curve.eertgif_id}"')
 
     color, highlight_color = styling.color_for_el(edge, is_trashed=is_trashed)
+    if is_trashed:
+        atts.append('trashed="yes"')
     # if curve.stroke or plot_as_diag:
     if curve.linewidth:
         atts.append(f'stroke-width="{curve.linewidth}"')

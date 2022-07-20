@@ -66,7 +66,7 @@ class AxisDir(IntEnum):
 
 
 CARDINAL = (Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST)
-BOX_TO_LINE_TOL = 4.0
+BOX_TO_LINE_TOL = 4.0e-6
 
 
 class DisplayMode(IntEnum):
@@ -213,6 +213,7 @@ class ExtractionConfig(object):
         "viz_hide_nodes",
         "viz_hide_edges",
         "viz_simplify_curves",
+        "viz_show_trashed",
     )
     defaults = {
         "orientation": "right",
@@ -226,6 +227,7 @@ class ExtractionConfig(object):
         "viz_hide_edges": False,
         "viz_highlight_mode": "element",
         "viz_simplify_curves": False,
+        "viz_show_trashed": False,
     }
     all_keys = tuple(
         list(choice_dict.keys())

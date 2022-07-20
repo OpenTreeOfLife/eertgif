@@ -216,45 +216,65 @@ function toggleTreeShape() {
 	extract_config.is_rect_shape = (dw > rw);
 }
 
+
+function elHiding() {
+	var el = $(this);
+	el.attr("hidden", "yes");
+	el.attr("display", "none");
+}
+
+function elUnhide() {
+	var el = $(this);
+	el.removeAttr("hidden");
+	if (! el.attr("trashed") || extract_config.viz_show_trashed) {
+		el.attr("display", "yes");
+	}
+}
+
 function textHiding(checkbx) {
 	if (checkbx.checked) {
-		$( "#treeholder svg text" ).each(function() {
-			$( this ).attr("display", "none")
-		});
+		$( "#treeholder svg text" ).each(elHiding);
 		extract_config.viz_hide_text = true;
 	} else {
-		$( "#treeholder svg text" ).each(function() {
-			$( this ).attr("display", "yes")
-		});
+		$( "#treeholder svg text" ).each(elUnhide);
 		extract_config.viz_hide_text = false;
 	}
 }
 
 function nodeHiding(checkbx) {
+	var st = extract_config.viz_show_trashed;
 	if (checkbx.checked) {
-		$( "#treeholder svg circle" ).each(function() {
-			$( this ).attr("display", "none")
-		});
+		$( "#treeholder svg circle" ).each(elHiding);
 		extract_config.viz_hide_nodes = true;
 	} else {
-		$( "#treeholder svg circle" ).each(function() {
-			$( this ).attr("display", "yes")
-		});
+		$( "#treeholder svg circle" ).each(elUnhide);
 		extract_config.viz_hide_nodes = false;
 	}
 }
 
 function edgeHiding(checkbx) {
 	if (checkbx.checked) {
-		$( "#treeholder svg path" ).each(function() {
-			$( this ).attr("display", "none")
-		});
+		$( "#treeholder svg path" ).each(elHiding);
 		extract_config.viz_hide_edges = true;
 	} else {
-		$( "#treeholder svg path" ).each(function() {
-			$( this ).attr("display", "yes")
-		});
+		$( "#treeholder svg path" ).each(elUnhide);
 		extract_config.viz_hide_edges = false;
+	}
+}
+
+function trashedShowing(checkbx) {
+	if (checkbx.checked) {
+		$( "[trashed]" ).each(function() {
+			if (! $(this).attr("hidden")) {
+				$( this ).attr("display", "yes")
+			}
+		});
+		extract_config.viz_show_trashed = true;
+	} else {
+		$( "[trashed]" ).each(function() {
+			$( this ).attr("display", "none")
+		});
+		extract_config.viz_show_trashed = false;
 	}
 }
 
@@ -330,6 +350,10 @@ function set_ui_based_on_config(){
 	var ht_chkbz = $( '#hide_text_btn' );
 	if (ht_chkbz.length) {
 		ht_chkbz.prop('checked', extract_config.viz_hide_text).trigger("change");
+	}
+	var st_chkbz = $( '#show_trashed_btn' );
+	if (st_chkbz.length) {
+		st_chkbz.prop('checked', extract_config.viz_show_trashed).trigger("change");
 	}
 	if (!extract_config.viz_simplify_curves) {
 		$( '#simplify_paths_btn' ).prop('checked', false).trigger("change");

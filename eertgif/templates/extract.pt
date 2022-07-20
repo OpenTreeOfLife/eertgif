@@ -28,6 +28,7 @@ extract_config = ${cfg_json};
             <option value="neighbors-only">neighbors-only</option>
             <option value="component">+ component</option>
             <option value="component-only">component only</option></select>
+        <input type="checkbox" id="show_trashed_btn" name="show_trashed_btn" onchange="trashedShowing(this)"><label for="show_trashed_btn" style="color:cyan">Show Trashed</label>&nbsp;
         <hr />
         <strong>Graph Components:</strong> <span class="button" onclick="toggleTreeShape()"><img id="rect_tree_shape_icon" width="20" height="20" src="/static/rect-tree.png" alt="rectangular tree shape icon" /><img id="diag_tree_shape_icon" width="0" height="20" src="/static/diag-tree.png" alt="diagnoal tree shape icon" /></span>&nbsp;
         <label for="node_tol_input" >Node merge tol.</label><input type="text" id="node_tol_input" name="node_tol" size="6" value="${cfg.node_merge_tol}" />&nbsp&nbsp
