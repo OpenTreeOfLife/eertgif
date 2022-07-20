@@ -394,33 +394,36 @@ function strictIntersectionSelector(context) {
   })
 }
 
-var svgDragSelectOptions = {
+window.svgDragSelectOptions = {
   svg: document.getElementsByTagName('svg')[0],
-  // onSelectionStart: function (selectionStart) {
-  //   console.log("onSelectionStart", selectionStart)
-  //   const selectedElements = selectionStart.svg.querySelectorAll('[data-selected]')
-  //   for (let i = 0; i < selectedElements.length; i++) {
-  //     selectedElements[i].removeAttribute('data-selected')
-  //   }
-  //   document.getElementById('selected-items').value = ''
-  // },
-  // onSelectionEnd: function (selectionEnd) {
-  //   console.log("onSelectionEnd", selectionEnd)
-  // },
-  // onSelectionChange: function (selectionChange) {
-  //   console.log("onSelectionChange", selectionChange)
-  //   selectionChange.newlyDeselectedElements.forEach(function (element) {
-  //     element.removeAttribute('data-selected')
-  //   })
-  //   selectionChange.newlySelectedElements.forEach(function (element) {
-  //     element.setAttribute('data-selected', '')
-  //   })
-  //   document.getElementById('selected-items').value = selectionChange.selectedElements
-  //     .map(function (element) { return element.getAttribute('data-name') })
-  //     .sort()
-  //     .join('\n')
-  // },
-  // selector: strictIntersectionSelector
+  onSelectionStart: function (selectionStart) {
+    console.log("onSelectionStart", selectionStart)
+    const selectedElements = selectionStart.svg.querySelectorAll('[data-selected]')
+    for (let i = 0; i < selectedElements.length; i++) {
+      selectedElements[i].removeAttribute('data-selected')
+      unhighlightElement(element);
+    }
+    document.getElementById('selected-items').value = ''
+  },
+  onSelectionEnd: function (selectionEnd) {
+    console.log("onSelectionEnd", selectionEnd)
+  },
+  onSelectionChange: function (selectionChange) {
+    console.log("onSelectionChange", selectionChange)
+    selectionChange.newlyDeselectedElements.forEach(function (element) {
+      element.removeAttribute('data-selected');
+      unhighlightElement(element);
+    })
+    selectionChange.newlySelectedElements.forEach(function (element) {
+      element.setAttribute('data-selected', '')
+      highlightElement(element);
+    })
+    document.getElementById('selected-items').value = selectionChange.selectedElements
+      .map(function (element) { return element.getAttribute('id') })
+      .sort()
+      .join('\n')
+  },
+  selector: strictIntersectionSelector
 }
 
 
@@ -431,7 +434,7 @@ $(document).ready(function() {
 	$("circle").each(add_to_map);
 	$("path").each(add_to_map);
 
-	//window.svgDragSelect(svgDragSelectOptions);
-//	window.svgDragSelectOptions.svg.style.visibility = 'visible';
+	window.svgDragSelect(svgDragSelectOptions);
+	window.svgDragSelectOptions.svg.style.visibility = 'visible';
 })
 ;

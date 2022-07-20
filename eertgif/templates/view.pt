@@ -61,6 +61,8 @@ extract_config = JSON.parse('{"orientation": "right", "is_rect_shape": true}');
 
         <div tal:condition="svg">
             <div id="treeholder" tal:content="structure svg"></div>
+            <!-- emulating selection area from https://luncheon.github.io/svg-drag-select/-->
+            <textarea id="selected-items" disabled rows="10"></textarea>
         </div>
     </div>
     <div tal:condition="status == 'no trees'">

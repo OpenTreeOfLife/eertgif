@@ -6,7 +6,19 @@
   text-align: center;
 }
 
+/* next 3 styles from https://luncheon.github.io/svg-drag-select/  */
 .svg-drag-select-area-overlay {
   border: 1px dotted gray;
   background-color: rgba(255,255,255,.4);
 }
+
+#selected-items {
+  position: fixed;
+  margin-top: 1.5em;
+  right: 1.5em;
+  bottom: 1.5em;
+  width: 8rem;
+  background-color: rgba(255,255,255,.8);
+}
+
+path[data-selected] { fill: #f84f79; }

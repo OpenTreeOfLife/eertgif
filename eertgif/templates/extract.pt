@@ -40,6 +40,9 @@ extract_config = ${cfg_json};
     <hr />
     <div tal:condition="svg">
         <div id="treeholder" tal:content="structure svg"></div>
+        <!-- emulating selection area from https://luncheon.github.io/svg-drag-select/-->
+        <textarea id="selected-items" disabled rows="10"></textarea>
+
     </div>
     <hr />
 </div>
