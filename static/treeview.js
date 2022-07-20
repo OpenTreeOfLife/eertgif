@@ -279,17 +279,18 @@ function trashedShowing(checkbx) {
 }
 
 function toggleCurveSimplify(target) {
+	var attrName;
 	if (target.checked) {
+		attrName = "simp_d";
 		extract_config.viz_simplify_curves = true;
 	} else {
+		attrName = "full_d";
 		extract_config.viz_simplify_curves = false;
 	}
 	$('#treeholder svg path').each(function(){
-		var dv = $( this ).attr("d");
-		var adv =  $( this ).attr("alt_d");
+		var adv =  $( this ).attr(attrName);
 		if (adv) {
 			$( this ).attr("d", adv);
-			$( this ).attr("alt_d", dv);
 		}
 	 });
 }

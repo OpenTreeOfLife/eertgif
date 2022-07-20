@@ -242,8 +242,12 @@ def curve_as_path(out, curve, xfn, yfn, styling=None, edge=None, is_trashed=Fals
         simp_coord_pairs = [f"{xfn(i[0])} {yfn(i[1])}" for i in curve.eff_diagonal]
     else:
         simp_coord_pairs = full_coord_pairs
-    full_pt_str = " L".join(full_coord_pairs)
     simp_pt_str = " L".join(simp_coord_pairs)
+    if plot_as_diag:
+        full_pt_str = " L".join(full_coord_pairs)
+    else:
+        full_pt_str = simp_pt_str
+
     atts = []
     id_owner = curve if edge is None else edge
     eertgif_id = getattr(id_owner, "eertgif_id", None)
@@ -275,17 +279,13 @@ def curve_as_path(out, curve, xfn, yfn, styling=None, edge=None, is_trashed=Fals
     atts.extend([f'stroke="{color}"', f'nhscolor="{color}"'])
     if curve.fill and not plot_as_diag:
         atts.extend(['fill="{color}"', 'nhfcolor="{color}"'])
-        if plot_as_diag:
-            pref = f'd="M{simp_pt_str} Z" alt_d="M{full_pt_str} Z" '
-        else:
-            pref = f'd="M{simp_pt_str} Z" '
+        pref = (
+            f'd="M{simp_pt_str} Z" simp_d="M{simp_pt_str} Z" full_d="M{full_pt_str} Z" '
+        )
         s = f' <path {pref} {" ".join(atts)} />\n'
     else:
         atts.extend(['fill="none"', 'nhfcolor="none"'])
-        if plot_as_diag:
-            pref = f'd="M{simp_pt_str}" alt_d="M{full_pt_str}" '
-        else:
-            pref = f'd="M{simp_pt_str}" '
+        pref = f'd="M{simp_pt_str}" simp_d="M{simp_pt_str}" full_d="M{full_pt_str}" '
         s = f' <path {pref} {" ".join(atts)} />\n'
 
     out.write(s)
