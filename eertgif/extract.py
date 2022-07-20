@@ -11,7 +11,15 @@ from typing import List, Tuple
 
 
 from pdfminer.high_level import LAParams
-from pdfminer.layout import LTChar, LTFigure, LTTextLine, LTTextBox, LTImage
+from pdfminer.layout import (
+    LTChar,
+    LTFigure,
+    LTTextLine,
+    LTTextBox,
+    LTImage,
+    LTRect,
+    LTCurve,
+)
 from .graph import GraphFromEdges
 from .safe_containers import UnprocessedRegion
 from .util import (
@@ -45,10 +53,18 @@ def find_text_and_curves(
         elif isinstance(el, LTTextBox):
             for sel in el:
                 if isinstance(sel, LTTextLine):
+                    # log.debug(f"lttextline {el.bbox}")
                     text_lines.append(sel)
+                else:
+                    log.debug(f"skipping element of type {type(el)} in textbox {el}")
         elif isinstance(el, LTTextLine):
+            # log.debug(f"lttextline {el.bbox}")
             text_lines.append(el)
         elif type(el) not in _skip_types:
+            if isinstance(el, LTRect):
+                log.debug(f"LTRect with __dict__={el.__dict__}")
+            elif not isinstance(el, LTCurve):
+                log.debug(f"obj of type {type(el)} with bbox={el.bbox}")
             otherobjs.append(el)
         else:
             if image_writer is not None and isinstance(el, LTImage):
@@ -238,8 +254,8 @@ class ExtractionManager(object):
         tn, no = [], []
         for obj in self._raw_nontext_objs:
             trash = obj.shape in _def_filter_shapes
-            # trash = trash or obj.eertgif_id not in {247, 349, 228, 317}
             if trash:
+                log.debug(f"filtering out {obj.__dict__}")
                 tn.append(obj)
             else:
                 no.append(obj)
