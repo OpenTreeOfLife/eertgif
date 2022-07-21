@@ -10,33 +10,33 @@ function getSearchParamList() {
 }
 
 function insertParam(key, value, paramList) {
-    key = encodeURIComponent(key);
-    value = encodeURIComponent(value);
+	key = encodeURIComponent(key);
+	value = encodeURIComponent(value);
 
-    // paramList looks like ['key1=value1', 'key2=value2', ...]
-    let i=0;
+	// paramList looks like ['key1=value1', 'key2=value2', ...]
+	let i=0;
 
-    for(; i<paramList.length; i++){
-        if (paramList[i].startsWith(key + '=')) {
-            let pair = paramList[i].split('=');
-            pair[1] = value;
-            paramList[i] = pair.join('=');
-            break;
-        }
-    }
+	for(; i<paramList.length; i++){
+		if (paramList[i].startsWith(key + '=')) {
+			let pair = paramList[i].split('=');
+			pair[1] = value;
+			paramList[i] = pair.join('=');
+			break;
+		}
+	}
 
-    if(i >= paramList.length){
-        paramList[paramList.length] = [key,value].join('=');
-    }
-    return paramList;
+	if(i >= paramList.length){
+		paramList[paramList.length] = [key,value].join('=');
+	}
+	return paramList;
 }
 
 function reloadPageWithParamList(paramList) {
-    // can return this or...
-    let params = paramList.join('&');
+	// can return this or...
+	let params = paramList.join('&');
 
-    // reload page with new params
-    document.location.search = params;
+	// reload page with new params
+	document.location.search = params;
 }
 /////////////////////////////////////////////////////////////////
 
@@ -188,12 +188,12 @@ function detectComponents() {
 			"config": JSON.stringify(extract_config),
 		}
 	$.ajax({
-    type: "POST",
-    url: document.location,
-    data: data,
-    success: function() {   
-        location.reload();  
-    }
+	type: "POST",
+	url: document.location,
+	data: data,
+	success: function() {   
+		location.reload();  
+	}
 });
 }
 
@@ -301,33 +301,33 @@ function toggleCurveSimplify(target) {
 
 // modified from https://stackoverflow.com/questions/20061774/rotate-an-image-in-image-source-in-html
 function rotate_img_90cw(obj) {
-    var deg = obj.data('rotate') || 0;
-    deg += 90;
-    if (deg >= 360) {
-    	deg -= 360;
-    }
-    obj.data('rotate', deg);
-    var rotate = 'rotate(' + deg +  'deg)';
-    obj.css({ 
-        '-webkit-transform': rotate,
-        '-moz-transform': rotate,
-        '-o-transform': rotate,
-        '-ms-transform': rotate,
-        'transform': rotate 
-    });
+	var deg = obj.data('rotate') || 0;
+	deg += 90;
+	if (deg >= 360) {
+		deg -= 360;
+	}
+	obj.data('rotate', deg);
+	var rotate = 'rotate(' + deg +  'deg)';
+	obj.css({ 
+		'-webkit-transform': rotate,
+		'-moz-transform': rotate,
+		'-o-transform': rotate,
+		'-ms-transform': rotate,
+		'transform': rotate 
+	});
 }
 
 function rotateOrientationClicked() {
 	 rotate_img_90cw($('#rect_tree_shape_icon'));
 	 rotate_img_90cw($('#diag_tree_shape_icon'));
 	 if (extract_config.orientation == "right") {
-	 	extract_config.orientation = "down";
+		extract_config.orientation = "down";
 	 } else if (extract_config.orientation == "down") {
-	 	extract_config.orientation = "left";
+		extract_config.orientation = "left";
 	 } else if (extract_config.orientation == "left") {
-	 	extract_config.orientation = "up";
+		extract_config.orientation = "up";
 	 } else  {
-	 	extract_config.orientation = "right";
+		extract_config.orientation = "right";
 	 }
 }
 
@@ -374,28 +374,28 @@ function set_ui_based_on_config(){
 /////////////////////////////////////////////////////
 // svg-drag-select code:
 function strictIntersectionSelector(context) {
-  const dragAreaInSvgCoordinate = context.dragAreaInSvgCoordinate
-  return context.getIntersections().filter(function (element) {
-    if (context.pointerEvent.target === element) {
-      return true
-    }
-    if (!(element instanceof SVGPathElement)) {
-      // strictly check only <path>s.
-      return true
-    }
-    for (let i = 0, len = element.getTotalLength(); i <= len; i += 4 /* arbitrary */) {
-      const point = element.getPointAtLength(i)
-      const x = point.x
-      const y = point.y
-      if (
-          dragAreaInSvgCoordinate.x <= x && x <= dragAreaInSvgCoordinate.x + dragAreaInSvgCoordinate.width &&
-          dragAreaInSvgCoordinate.y <= y && y <= dragAreaInSvgCoordinate.y + dragAreaInSvgCoordinate.height
-      ) {
-        return true
-      }
-    }
-    return false
-  })
+	const dragAreaInSvgCoordinate = context.dragAreaInSvgCoordinate
+	return context.getIntersections().filter(function (element) {
+	if (context.pointerEvent.target === element) {
+		return true
+	}
+	if (!(element instanceof SVGPathElement)) {
+		// strictly check only <path>s.
+		return true
+	}
+	for (let i = 0, len = element.getTotalLength(); i <= len; i += 4 /* arbitrary */) {
+		const point = element.getPointAtLength(i)
+		const x = point.x
+		const y = point.y
+		if (
+			dragAreaInSvgCoordinate.x <= x && x <= dragAreaInSvgCoordinate.x + dragAreaInSvgCoordinate.width &&
+			dragAreaInSvgCoordinate.y <= y && y <= dragAreaInSvgCoordinate.y + dragAreaInSvgCoordinate.height
+		) {
+		return true
+		}
+	}
+	return false
+	})
 }
 
 function highlightElement(element) {
@@ -413,41 +413,41 @@ function noOp() {
 
 
 window.svgDragSelectOptions = {
-  svg: document.getElementsByTagName('svg')[0],
-  onSelectionStart: function (selectionStart) {
-    console.log("onSelectionStart", selectionStart)
-    const selectedElements = selectionStart.svg.querySelectorAll('[data-selected]')
-    for (let i = 0; i < selectedElements.length; i++) {
-      selectedElements[i].removeAttribute('data-selected')
-      unhighlightElement(selectedElements[i]);
-    }
-    document.getElementById('selected-items').value = ''
-    var path = selectionStart.pointerEvent.path;
-    if (path.length && path[0].tagName !== "svg") {
-    	handleClickOnGraph(selectionStart.pointerEvent, path[0]);
-    }
-  },
-  onSelectionEnd: function (selectionEnd) {
-    console.log("onSelectionEnd", selectionEnd)
-  },
-  onSelectionChange: function (selectionChange) {
-    console.log("onSelectionChange", selectionChange)
-    selectionChange.newlyDeselectedElements.forEach(function (element) {
-      element.removeAttribute('data-selected');
-      unhighlightElement(element);
-    })
-    selectionChange.newlySelectedElements.forEach(function (element) {
-      element.setAttribute('data-selected', '')
-      highlightElement(element);
-    })
-    document.getElementById('selected-items').value = selectionChange.selectedElements
-      .map(function (element) { return element.getAttribute('id') })
-      .sort()
-      .join('\n');
+	svg: document.getElementsByTagName('svg')[0],
+	onSelectionStart: function (selectionStart) {
+	console.log("onSelectionStart", selectionStart)
+	const selectedElements = selectionStart.svg.querySelectorAll('[data-selected]')
+	for (let i = 0; i < selectedElements.length; i++) {
+		selectedElements[i].removeAttribute('data-selected')
+		unhighlightElement(selectedElements[i]);
+	}
+	document.getElementById('selected-items').value = ''
+	var path = selectionStart.pointerEvent.path;
+	if (path.length && path[0].tagName !== "svg") {
+		handleClickOnGraph(selectionStart.pointerEvent, path[0]);
+	}
+	},
+	onSelectionEnd: function (selectionEnd) {
+	console.log("onSelectionEnd", selectionEnd)
+	},
+	onSelectionChange: function (selectionChange) {
+	console.log("onSelectionChange", selectionChange)
+	selectionChange.newlyDeselectedElements.forEach(function (element) {
+		element.removeAttribute('data-selected');
+		unhighlightElement(element);
+	})
+	selectionChange.newlySelectedElements.forEach(function (element) {
+		element.setAttribute('data-selected', '')
+		highlightElement(element);
+	})
+	document.getElementById('selected-items').value = selectionChange.selectedElements
+		.map(function (element) { return element.getAttribute('id') })
+		.sort()
+		.join('\n');
 
-    selectionChange.pointerEvent.preventDefault();
-  },
-  selector: strictIntersectionSelector
+	selectionChange.pointerEvent.preventDefault();
+	},
+	selector: strictIntersectionSelector
 }
 
 
