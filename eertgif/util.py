@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from enum import IntEnum
 from math import sqrt
-from typing import List, Any, Tuple, Union
+from typing import List, Any, Tuple, Union, Iterable
 import re
 
 from pdfminer.utils import Point, Rect
@@ -108,7 +108,7 @@ def calc_dist(pt1: Point, pt2: Point) -> float:
     return sqrt(xsq + ysq)
 
 
-def find_closest(loc: Point, el_list: List[Any]) -> Tuple[float, Any]:
+def find_closest(loc: Point, el_list: Iterable[Any]) -> Tuple[float, Any]:
     dist, closest = float("inf"), None
     for el in el_list:
         d = calc_dist(loc, el.loc)
@@ -157,6 +157,19 @@ def mean_var(flist: List[float]) -> Tuple[Union[float, None], Union[float, None]
     var_num = ss - n * mean * mean
     var = var_num / (n - 1)
     return mean, var
+
+
+def mean_vector(list_of_pairs):
+    """Return mean of ((second[0] - first[0]), (second[1] - first[1])) for each (first, second) pair in `list_of_pairs`
+    """
+    if not list_of_pairs:
+        return 0.0, 0.0
+    sum_x_diff, sum_y_diff = 0.0, 0.0
+    for first, second in list_of_pairs:
+        sum_x_diff += second[0] - first[0]
+        sum_y_diff += second[1] - first[1]
+    n = len(list_of_pairs)
+    return sum_x_diff / n, sum_y_diff / n
 
 
 starts_num_pat = re.compile(r"^([-.eE0-9]+).*")

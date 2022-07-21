@@ -14,6 +14,7 @@ from .util import (
     as_numeric,
     DEFAULT_LABEL_GAP,
     mean_var,
+    mean_vector,
     Direction,
     AxisDir,
     rotate_cw,
@@ -238,6 +239,9 @@ class PhyloTree(object):
     def _try_match_text(self, inline_t, externals, calc_x, calc_y):
         if not (inline_t and externals):
             return [], [], [], [], set(externals), {}
+        # first level matching:
+        #   if an external node and a text object are
+        #   closest to each other, then we call them a match
         by_lab, by_ext = {}, {}
         for label_t in inline_t:
             loc = (calc_x(label_t), calc_y(label_t))
@@ -247,27 +251,66 @@ class PhyloTree(object):
             prev = by_ext.get(ext)
             if prev is None or dist < prev[-1]:
                 by_ext[ext] = (label_t, dist)
-        matched_labels, orphan_labels = [], []
+        matched_labels, lev1_orphans = [], []
         matched_leaves = set()
         matched_dists = []
+        match_pairs = []
+        unmatched_lvs = set(externals)
         for label_t in inline_t:
             ext, dist = by_lab[label_t]
             if by_ext.get(ext, [None, None])[0] is label_t:
                 matched_labels.append(label_t)
                 matched_dists.append(dist)
                 matched_leaves.add(ext)
+                match_pairs.append((ext, label_t))
+                unmatched_lvs.remove(ext)
             else:
-                orphan_labels.append(label_t)
-        unmatched_ext = set()
-        for nd in externals:
-            if nd not in matched_leaves:
-                unmatched_ext.add(nd)
+                lev1_orphans.append(label_t)
+        # Level 2 matching.
+        # Use the average offset between matched text and tips
+        # to provide a better expected location for a tip's text
+        offset_vec = [
+            (ext.loc, (calc_x(text), calc_y(text))) for ext, text in match_pairs
+        ]
+        mean_x_off, mean_y_off = mean_vector(offset_vec)
+        log.debug(f"mean_offset = {(mean_x_off, mean_y_off)}")
+
+        for label_t in lev1_orphans:
+            loc = (calc_x(label_t) - mean_x_off, calc_y(label_t) - mean_y_off)
+            dist, ext = find_closest(loc, unmatched_lvs)
+            old = by_lab[label_t]
+            if (
+                dist > 2 * old[1]
+            ):  # TODO make more generic. currently "not worse than twice as far..."
+                continue
+            by_lab[label_t] = (ext, dist)
+            prev = by_ext.get(ext)
+            if prev is None or (prev[0] not in lev1_orphans) or (dist < prev[-1]):
+                by_ext[ext] = (label_t, dist)
+        orphan_labels = set()
+        for label_t in lev1_orphans:
+            ext, dist = by_lab[label_t]
+            if ext not in unmatched_lvs:
+                orphan_labels.add(label_t)
+            elif by_ext.get(ext, [None, None])[0] is label_t:
+                matched_labels.append(label_t)
+                matched_dists.append(dist)
+                matched_leaves.add(ext)
+                match_pairs.append((ext, label_t))
+                unmatched_lvs.remove(ext)
+            else:
+                orphan_labels.add(label_t)
+
+        # unmatched_ext = set()
+        # for nd in externals:
+        #     if nd not in matched_leaves:
+        #         unmatched_ext.add(nd)
         return (
             matched_labels,
             orphan_labels,
             matched_dists,
             matched_leaves,
-            unmatched_ext,
+            unmatched_lvs,
             by_lab,
         )
 
