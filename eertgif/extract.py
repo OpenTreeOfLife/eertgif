@@ -128,8 +128,8 @@ class ExtractionManager(object):
         self._update_by_id_map()
 
     def set_extract_config(self, extract_cfg):
-        trashed_ids = extract_cfg.get("trashed_ids", [])
-        log.debug(f"trashed_ids = {trashed_ids}")
+        trashed_ids = extract_cfg.get("force_trashed_ids", [])
+        log.debug(f"force_trashed_ids = {trashed_ids}")
         new_force_trashed = set()
         all_trashed = set()
         if trashed_ids:
