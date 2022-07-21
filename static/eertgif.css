@@ -22,3 +22,35 @@
 }
 
 path[data-selected] { fill: #f84f79; }
+
+.selectionfield * {
+  vertical-align: middle;
+  horizontal-align: middle;
+  position: fixed;
+  margin-top: 0.5em;
+  right: 1.5em;
+  bottom: 0.2em;
+  width: 8rem;
+  background-color: rgba(255,255,255,.6);
+}
+
+
+#trashed-items {
+  position: fixed;
+  margin-bottom: 1.5em;
+  right: 1.5em;
+  top: 1.5em;
+  width: 8rem;
+  background-color: rgba(255,255,255,.8);
+}
+
+.trashedfield * {
+  vertical-align: middle;
+  horizontal-align: middle;
+  position: fixed;
+  margin-bottom: 0.5em;
+  right: 1.5em;
+  top: 0.2em;
+  width: 8rem;
+  background-color: rgba(255,255,255,.6);
+}

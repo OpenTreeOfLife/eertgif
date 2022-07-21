@@ -1,7 +1,7 @@
 
 
 var el_by_comp_id = {};
-
+var selected_id_set = new Set();
 
 /////////////////////////////////////////////////////////////////
 // following 3 functions modified from https://stackoverflow.com/posts/487049/revisions
@@ -136,27 +136,31 @@ function setColorsForNeighbors(el, stroke_color, fill_color, nonmatching_display
 
 // colors target and other elements (depending on the highlight_mode UI element)/
 // `out_move` should be true if this is a move out of the target.
+// note that highlight_mode reverts to "element" only if there is an active
+//	selection event.
 function mouseColorEvent(target, sc, fc, out_move) {
 	var nonmatching_display;
 	var highlight_mode = $("#highlight_mode").val();
-	if (highlight_mode == "component" || highlight_mode == "component-only") {
-		var comp_id = target.getAttribute("component");
-		if (typeof comp_id === 'undefined') {
-			return;
+	if (selected_id_set.size == 0) {
+		if (highlight_mode == "component" || highlight_mode == "component-only") {
+			var comp_id = target.getAttribute("component");
+			if (typeof comp_id === 'undefined') {
+				return;
+			}
+			if (out_move || highlight_mode == "component" ) {
+				nonmatching_display = "yes";
+			} else {
+				nonmatching_display = "none"
+			}
+			setColorsForSameComp(comp_id, sc, fc, nonmatching_display);
+		} else if (highlight_mode == "neighbors" || highlight_mode == "neighbors-only") {
+			if (out_move || highlight_mode == "neighbors" ) {
+				nonmatching_display = "yes";
+			} else {
+				nonmatching_display = "none"
+			}
+			setColorsForNeighbors(target, sc, fc, nonmatching_display);
 		}
-		if (out_move || highlight_mode == "component" ) {
-			nonmatching_display = "yes";
-		} else {
-			nonmatching_display = "none"
-		}
-		setColorsForSameComp(comp_id, sc, fc, nonmatching_display);
-	} else if (highlight_mode == "neighbors" || highlight_mode == "neighbors-only") {
-		if (out_move || highlight_mode == "neighbors" ) {
-			nonmatching_display = "yes";
-		} else {
-			nonmatching_display = "none"
-		}
-		setColorsForNeighbors(target, sc, fc, nonmatching_display);
 	}
 	colorElIfNHColorNonNone(target, sc, fc);
 	
@@ -432,33 +436,67 @@ function unhighlightElement(element) {
 function noOp() {
 }
 
-
-window.svgDragSelectOptions = {
-	svg: document.getElementsByTagName('svg')[0],
-	onSelectionStart: function (selectionStart) {
-	console.log("onSelectionStart", selectionStart)
-	const selectedElements = selectionStart.svg.querySelectorAll('[data-selected]')
+function clearSelection() {
+	const selectedElements = window.svgDragSelectOptions.svg.querySelectorAll('[data-selected]');
 	for (let i = 0; i < selectedElements.length; i++) {
 		selectedElements[i].removeAttribute('data-selected')
 		unhighlightElement(selectedElements[i]);
 	}
+	selected_id_set.clear();
 	document.getElementById('selected-items').value = ''
+}
+
+function moveSelectionToTrashed() {
+	const selectedElements = window.svgDragSelectOptions.svg.querySelectorAll('[data-selected]');
+	for (let i = 0; i < selectedElements.length; i++) {
+		selectedElements[i].removeAttribute('data-selected')
+		selectedElements[i].setAttribute('trashed', 'yes')
+	}
+	var old_trashed_txt = document.getElementById('trashed-items').value;
+	var old_selection_txt =  document.getElementById('selected-items').value;
+	if (old_selection_txt !== "") {
+		if (old_trashed_txt !== "") {
+			document.getElementById('trashed-items').value = old_trashed_txt + "\n" + old_selection_txt;
+		} else {
+			document.getElementById('trashed-items').value = old_selection_txt;
+		}
+	}
+	trashedShowing($("#show_trashed_btn").get(0));
+	clearSelection();
+}
+
+window.svgDragSelectOptions = {
+	svg: document.getElementsByTagName('svg')[0],
+	
+	onSelectionStart: function (selectionStart) {
+	//console.log("onSelectionStart", selectionStart)
+	// const selectedElements = selectionStart.svg.querySelectorAll('[data-selected]')
+	// for (let i = 0; i < selectedElements.length; i++) {
+	// 	selectedElements[i].removeAttribute('data-selected')
+	// 	unhighlightElement(selectedElements[i]);
+	// }
+	// selected_id_set.clear();
+	clearSelection();
 	var path = selectionStart.pointerEvent.path;
 	if (path.length && path[0].tagName !== "svg") {
 		handleClickOnGraph(selectionStart.pointerEvent, path[0]);
 	}
 	},
+	
 	onSelectionEnd: function (selectionEnd) {
-	console.log("onSelectionEnd", selectionEnd)
+	//console.log("onSelectionEnd", selectionEnd)
 	},
+
 	onSelectionChange: function (selectionChange) {
-	console.log("onSelectionChange", selectionChange)
+	//console.log("onSelectionChange", selectionChange)
 	selectionChange.newlyDeselectedElements.forEach(function (element) {
 		element.removeAttribute('data-selected');
+		selected_id_set.delete(element.getAttribute('id'));
 		unhighlightElement(element);
 	})
 	selectionChange.newlySelectedElements.forEach(function (element) {
 		element.setAttribute('data-selected', '')
+		selected_id_set.add(element.getAttribute('id'));
 		highlightElement(element);
 	})
 	document.getElementById('selected-items').value = selectionChange.selectedElements
@@ -468,6 +506,7 @@ window.svgDragSelectOptions = {
 
 	selectionChange.pointerEvent.preventDefault();
 	},
+	
 	selector: strictIntersectionSelector
 }
 
@@ -481,5 +520,10 @@ $(document).ready(function() {
 
 	window.svgDragSelect(svgDragSelectOptions);
 	window.svgDragSelectOptions.svg.style.visibility = 'visible';
+	$(document).on("keydown", function (e) {
+		if (e.which == 8 || e.which == 46) { // backspace (8) or DEL key
+	    	moveSelectionToTrashed();
+	    }
+	});
 })
 ;
