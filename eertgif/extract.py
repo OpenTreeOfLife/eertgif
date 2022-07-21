@@ -20,8 +20,8 @@ from pdfminer.layout import (
     LTRect,
     LTCurve,
 )
-from .graph import GraphFromEdges
-from .safe_containers import UnprocessedRegion
+from .graph import GraphFromEdges, Node, Edge
+from .safe_containers import UnprocessedRegion, SafeTextLine, SafeCurve
 from .util import (
     CurveShape,
     DisplayMode,
@@ -91,11 +91,22 @@ _def_filter_shapes = {CurveShape.COMPLICATED, CurveShape.DOT}
 class ExtractionManager(object):
     def __init__(self, unproc_page, extract_cfg=None):
         self._cfg = ExtractionConfig(extract_cfg)
+        self.force_trashed_ids = set()
+        self.auto_trashed_ids = set()
         self.page_num = unproc_page.page_num
         self.subpage_num = unproc_page.subpage_num
         self.font_dict = dict(unproc_page.font_dict)
         self._raw_text_lines = list(unproc_page.text_lines)
         self._raw_nontext_objs = list(unproc_page.nontext_objs)
+        if self._cfg.force_trashed_ids:
+            all_lines = self._raw_text_lines + self._raw_nontext_objs
+            all_ids = set([i.eertgif_id for i in all_lines])
+            for tid in self._cfg.force_trashed_ids:
+                if tid not in all_ids:
+                    raise RuntimeError(
+                        f"Unknown object id ({tid}) in force_trashed_ids"
+                    )
+                self.force_trashed_ids.add(tid)
         self.eertgif_id = 1 + unproc_page.eertgif_id
         self._next_e_id = 1 + self.eertgif_id
         self.id_lock = Lock()
@@ -117,10 +128,57 @@ class ExtractionManager(object):
         self._update_by_id_map()
 
     def set_extract_config(self, extract_cfg):
+        trashed_ids = extract_cfg.get("trashed_ids", [])
+        log.debug(f"trashed_ids = {trashed_ids}")
+        new_force_trashed = set()
+        all_trashed = set()
+        if trashed_ids:
+            self._update_by_id_map()
+            for tid in trashed_ids:
+                try:
+                    tid = int(tid)
+                except:
+                    pass
+                obj = self._by_id.get(tid)
+                if obj is None:
+                    raise RuntimeError(f"Unknown id to be trashed: {tid}")
+                log.debug(f"obj for {tid} = {obj}")
+                if isinstance(obj, Node):
+                    continue  # nodes are side effects of edge addition, so deleting a node
+                    #  won't change the next detect components
+                if isinstance(obj, Edge):
+                    obj = obj.curve
+                if isinstance(obj, SafeCurve):
+                    if obj in self.nontext_objs:
+                        self.nontext_objs.remove(obj)
+                        if obj not in self.trashed_nontext_objs:
+                            self.trashed_nontext_objs.append(obj)
+                            new_force_trashed.add(obj.eertgif_id)
+                    else:
+                        assert obj in self.trashed_nontext_objs
+                    all_trashed.add(obj.eertgif_id)
+                elif isinstance(obj, SafeTextLine):
+                    if obj in self.text_lines:
+                        self.text_lines.remove(obj)
+                        if obj not in self.trashed_text:
+                            self.trashed_text.append(obj)
+                            new_force_trashed.add(obj.eertgif_id)
+                    else:
+                        assert obj in self.trashed_text
+                    all_trashed.add(obj.eertgif_id)
+                else:
+                    raise RuntimeError(
+                        f"Unexpected attempt to trash element of type {type(obj)}"
+                    )
+        for auto_id in self.auto_trashed_ids:
+            if auto_id in all_trashed:
+                all_trashed.remove(auto_id)
+        self.force_trashed_ids = all_trashed
         extract_cfg = ExtractionConfig(extract_cfg, self._cfg)
         for k in ExtractionConfig.all_keys:
             if k in extract_cfg:
                 self._cfg[k] = copy.deepcopy(extract_cfg[k])
+        self._cfg.force_trashed_ids = list(self.force_trashed_ids)
 
     @property
     def cfg(self):
@@ -248,9 +306,14 @@ class ExtractionManager(object):
         return i
 
     def filter(self):
+        auto_trashed_ids = set()
         tl = []
+        ttl = []
         for line in self._raw_text_lines:
-            tl.append(line)
+            if line.eertgif_id in self.force_trashed_ids:
+                ttl.append(line)
+            else:
+                tl.append(line)
         tn, no = [], []
         for obj in self._raw_nontext_objs:
             trash = obj.shape in _def_filter_shapes
@@ -258,6 +321,9 @@ class ExtractionManager(object):
                 # log.debug(f"filtering out {obj.__dict__}")
                 # if obj.eertgif_id == 329:
                 #    obj._diagnose_shape()
+                auto_trashed_ids.add(obj.eertgif_id)
+                tn.append(obj)
+            elif obj.eertgif_id in self.force_trashed_ids:
                 tn.append(obj)
             else:
                 no.append(obj)
@@ -265,12 +331,19 @@ class ExtractionManager(object):
         if tl != self.text_lines:
             self.text_lines[:] = tl
             changed = True
+        if ttl != self.trashed_text:
+            self.trashed_text[:] = ttl
+            changed = True
         if no != self.nontext_objs:
             changed = True
             self.nontext_objs[:] = no
         if tn != self.trashed_nontext_objs:
             changed = True
             self.trashed_nontext_objs[:] = tn
+        if auto_trashed_ids != self.auto_trashed_ids:
+            self.auto_trashed_ids.clear()
+            self.auto_trashed_ids.update(auto_trashed_ids)
+            changed = True
         return changed
 
     def _new_graph(self):
@@ -290,8 +363,10 @@ class ExtractionManager(object):
             e1, most_extreme, e2, coord = tup[2:]
             if e1.component_idx == e2.component_idx:
                 continue
+            c1_idx = e1.component_idx
+            c2_idx = e2.component_idx
             self.graph.force_merge(e1, most_extreme, e2, coord)
-            self.forest._post_merge_hook(e1, e2)
+            self.forest._post_merge_hook(c1_idx, c2_idx)
 
     def _find_mergeable_components_rect(self):
         target_shapes, ext_point_dir = None, None
@@ -363,6 +438,9 @@ class ExtractionManager(object):
             self._update_by_id_map()
         if self.display_mode == DisplayMode.CURVES_AND_TEXT:
             self.display_mode = DisplayMode.COMPONENTS
+
+    def extract_trees(self):
+        return self.analyze()
 
     def analyze(self):
         # build forest, but don't update map, as we'll do that after the trees are made

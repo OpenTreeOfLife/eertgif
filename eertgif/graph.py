@@ -417,9 +417,7 @@ class Forest(object):
         self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
         self.rect_base_intercept_tol = None
 
-    def _post_merge_hook(self, edge1, edge2):
-        c1_idx = edge1.component_idx
-        c2_idx = edge2.component_idx
+    def _post_merge_hook(self, c1_idx, c2_idx):
         assert c1_idx != c2_idx
         min_idx, max_idx = min(c1_idx, c2_idx), max(c1_idx, c2_idx)
         to_die_list = self.components[max_idx]

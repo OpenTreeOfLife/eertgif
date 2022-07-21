@@ -120,6 +120,15 @@ class PhyloTree(object):
         # self.used_text.update(best_blob[2])
         # self.num_tips = best_blob[3]
 
+    @property
+    def num_tips(self):
+        return len(self.tips())
+
+    def tips(self):
+        if self.root is None or self.pma is None:
+            return []
+        return [i for i in self.post_order() if i.is_tip]
+
     def clean_for_export(self):
         dup_labels = {}
         for nd in self.root.post_order():
@@ -375,7 +384,7 @@ class PhyloNode(object):
             if adj is par:
                 continue
             if adj is self:
-                assert False, "I'm just beside myself"
+                raise CycleDetected("I'm just beside myself")
             self._unsorted_children.append(adj)
             adj.root_based_on_par(par=self, seen=seen)
         self.sort_children()
@@ -522,6 +531,7 @@ class PhyloMapAttempt(object):
         self.phy_ctx = phy_ctx
         for tl in tip_labels:
             ml = label2leaf[tl][0]
+            assert ml is not None
             phynd = PhyloNode(
                 vnode=ml, label_obj=tl, phy_ctx=phy_ctx, id_gen=self.id_gen
             )
@@ -530,6 +540,7 @@ class PhyloMapAttempt(object):
         int_phylo = set()
         for ul in unmatched_lvs:
             assert ul not in node2phyn
+            assert ul is not None
             phynd = PhyloNode(vnode=ul, phy_ctx=phy_ctx, id_gen=self.id_gen)
             node2phyn[ul] = phynd
             leaves.add(phynd)

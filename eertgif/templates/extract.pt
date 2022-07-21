@@ -35,8 +35,13 @@ extract_config = ${cfg_json};
         <span class="button" onclick="toggleTreeShape()"><img id="rect_tree_shape_icon" width="20" height="20" src="/static/rect-tree.png" alt="rectangular tree shape icon" /><img id="diag_tree_shape_icon" width="0" height="20" src="/static/diag-tree.png" alt="diagnoal tree shape icon" /></span>&nbsp;
         <span class="button" onclick="rotateOrientationClicked()"><img id="rotate_cw_icon" width="20" src="/static/rotate.png" alt="rotate orientation 90 degrees icon" /></span>&nbsp;
         <label for="node_tol_input" >Node merge tol.</label><input type="text" id="node_tol_input" name="node_tol" size="6" value="${cfg.node_merge_tol}" />&nbsp&nbsp
-        <label for="rect_axis_merge_tol" >Rect axis merge tol.</label><input type="text" id="rect_axis_merge_tol" size="6" name="rect_axis_merge_tol" value="${cfg.rect_base_intercept_tol}" />&nbsp;&nbsp;<span class="bigbutton" onclick="detectComponents()" display="none"><span>&nbsp;Detect Components&nbsp;</span></span>
+        <label for="rect_axis_merge_tol" >Rect axis merge tol.</label><input type="text" id="rect_axis_merge_tol" size="6" name="rect_axis_merge_tol" value="${cfg.rect_base_intercept_tol}" />&nbsp;&nbsp;
+        <span class="bigbutton" onclick="detectComponents()" display="none"><span>&nbsp;Detect Components&nbsp;</span></span>
         <hr />
+        <strong>Tree Extraction:</strong>&nbsp;
+        <span class="bigbutton" onclick="extractTree()" display="none"><span>&nbsp;Attempt Tree Extraction&nbsp;</span></span>&nbsp;
+        <span tal:condition="not phylo_stats">No trees extracted.</span>
+        <span tal:condition="phylo_stats">1 tree with ${phylo_stats['ntips']} tips extracted.</span>
         
     </div>
 

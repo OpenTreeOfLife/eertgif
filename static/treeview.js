@@ -234,6 +234,10 @@ function detectComponents() {
 		return;
 	}
 	data["action"] = "detect_components";
+	postAndReload(data);
+}
+
+function postAndReload(data) {
 	$.ajax({
 		type: "POST",
 		url: document.location,
@@ -242,6 +246,15 @@ function detectComponents() {
 			location.reload();  
 		}
 	});
+}
+
+function extractTree() {
+	var data = bundleGlobalStateForServer();
+	if (data === null) {
+		return;
+	}
+	data["action"] = "extract_trees";
+	postAndReload(data);
 }
 
 function add_to_map() {

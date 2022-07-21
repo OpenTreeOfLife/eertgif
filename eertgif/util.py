@@ -205,7 +205,7 @@ class ExtractionConfig(object):
             "component-only",
         ),
     }
-    non_bool_keys = ("display_mode",)
+    non_bool_keys = ("display_mode", "force_trashed_ids")
     tol_keys = ("box_to_line_tol", "node_merge_tol", "rect_base_intercept_tol")
     bool_keys = (
         "is_rect_shape",
@@ -218,6 +218,7 @@ class ExtractionConfig(object):
     defaults = {
         "orientation": "right",
         "display_mode": DisplayMode.CURVES_AND_TEXT,
+        "force_trashed_ids": [],
         "is_rect_shape": False,
         "box_to_line_tol": BOX_TO_LINE_TOL,  # used in SafeCurve diagnose_shape
         "rect_base_intercept_tol": 0.01,
@@ -258,6 +259,14 @@ class ExtractionConfig(object):
         self._init_set(
             "display_mode", obj, second_level, transform=lambda val: DisplayMode(val)
         )
+        self._init_set(
+            "force_trashed_ids",
+            obj,
+            second_level,
+            predicate=lambda val: isinstance(val, list),
+            transform=lambda val: [int(i) for i in val],
+        )
+
         for k in ExtractionConfig.tol_keys:
             self._init_set(
                 k,

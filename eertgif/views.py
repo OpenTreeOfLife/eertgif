@@ -98,8 +98,9 @@ def scan_for_uploads(uploads_dir):
 
 class ExtractActions:
     DETECT_COMPONENT = "detect_components"
+    EXTRACT_TREES = "extract_trees"
 
-    all = frozenset([DETECT_COMPONENT])
+    all = frozenset([DETECT_COMPONENT, EXTRACT_TREES])
 
 
 class EertgifView:
@@ -235,6 +236,10 @@ class EertgifView:
 
     def _common_extract_return(self, em, tag, page_id, status):
         svg = em.as_svg_str()
+        if isinstance(em, UnprocessedRegion) or em.best_tree is None:
+            phylo_stats = {}
+        else:
+            phylo_stats = {"ntips": em.best_tree.num_tips}
         d = {
             "tag": tag,
             "region_id": page_id,
@@ -242,6 +247,7 @@ class EertgifView:
             "status": status,
             "cfg_json": json.dumps(em.cfg.dict_for_json()),
             "cfg": em.cfg,
+            "phylo_stats": phylo_stats,
         }
         return d
 
@@ -276,10 +282,12 @@ class EertgifView:
                     raise HTTPBadRequest(
                         "Could not set the specified config parameters"
                     )
-            if action and action == ExtractActions.DETECT_COMPONENT:
-                em.detect_components()
+            if action:
+                if action == ExtractActions.DETECT_COMPONENT:
+                    em.detect_components()
+                elif action == ExtractActions.EXTRACT_TREES:
+                    em.extract_trees()
                 self._repickle(page_id, em, top_cont)
-                # return HTTPFound(location=f"/extract/{tag}?page={page_id}")
         return self._common_extract_return(em, tag, page_id, status)
 
     @view_config(
