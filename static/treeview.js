@@ -40,11 +40,24 @@ function reloadPageWithParamList(paramList) {
 }
 /////////////////////////////////////////////////////////////////
 
+//Sets display to "yes" if not hidden and not trashed (or showTrashed is selected)
+function displayIfNotHiddenOrTrashed(el) {
+	if (el.hasAttribute("hidden")) {
+		return;
+	}
+	if (extract_config.viz_show_trashed || ! el.hasAttribute("trashed")) {
+		el.setAttribute("display", "yes");
+	}
+}
 
+//Sets display to none (without checking for trashed status)
+function undisplay(el) {
+	el.setAttribute("display", "none");
+}
 
-
+// Takes a dom el, sets colors, if nhfcolor/nhscolor are not None
+//	calls displayIfNotHiddenOrTrashed
 function colorElIfNHColorNonNone(el, stroke_color, fill_color) {
-	el.setAttribute("display", "yes");
 	var nhf = el.getAttribute("nhfcolor");
 	if (nhf !== "none") {
 		if (fill_color === "none") {
@@ -61,8 +74,13 @@ function colorElIfNHColorNonNone(el, stroke_color, fill_color) {
 			el.setAttribute("stroke", stroke_color);
 		}
 	}
+	displayIfNotHiddenOrTrashed(el);
 }
 
+// calls colorElIfNHColorNonNone for every element with the same component index
+// (`comp_id`). Calls setDisplayForGraph with `nonmatching_display` to 
+// to allow for setting the display for none for other elements.
+//	TEMP. that nonmatching_display stuff is sloppy and could flicker
 function setColorsForSameComp(comp_id, stroke_color, fill_color, nonmatching_display) {
 	var el_of_same_comp = el_by_comp_id[comp_id]
 	if (typeof el_of_same_comp === 'undefined') {
@@ -77,12 +95,14 @@ function setColorsForSameComp(comp_id, stroke_color, fill_color, nonmatching_dis
 	}
 }
 
-function colorComSepList(edge_refs, stroke_color, fill_color) {
+// `id_refs` should be a comma separated list of element ids
+//	colorElIfNHColorNonNone will be called for each.
+function colorComSepList(id_refs, stroke_color, fill_color) {
 	var er;
 	var el;
-	if (edge_refs && edge_refs !== "") {
-		var edge_list = edge_refs.split(",")
-		let i=0
+	if (id_refs && id_refs !== "") {
+		var edge_list = id_refs.split(",")
+		let i=0;
 		for (; i < edge_list.length; i++) {
 			er = "#" + edge_list[i].trim();
 			el = $( er ).get(0);
@@ -90,15 +110,23 @@ function colorComSepList(edge_refs, stroke_color, fill_color) {
 		}
 	}
 }
+
+// if nonmatching_display is None, set display of graph elements (paths and circles)
+//	to none. Otherwise calls displayIfNotHiddenOrTrashed on them.
 function setDisplayForGraph(nonmatching_display) {
-	$("#treeholder svg path").each(function() {
-		$( this ).attr("display", nonmatching_display);
-	});
-	$("#treeholder svg circle").each(function() {
-		$( this ).attr("display", nonmatching_display);
-	});
+	if (nonmatching_display == "none") {
+		$("#treeholder svg path, #treeholder svg circle").each(function() {
+			undisplay($( this ).get(0));
+		});
+	} else {
+		$("#treeholder svg path, #treeholder svg circle").each(function() {
+			displayIfNotHiddenOrTrashed($( this ).get(0));
+		});
+	}
 }
 
+// setDisplayForGraph, then displays all elements referred to in "nodes" or "edges"
+//	attributes of "el"
 function setColorsForNeighbors(el, stroke_color, fill_color, nonmatching_display) {
 	setDisplayForGraph(nonmatching_display);
 	colorComSepList(el.getAttribute("edges"), stroke_color, fill_color);
@@ -106,6 +134,8 @@ function setColorsForNeighbors(el, stroke_color, fill_color, nonmatching_display
 }
 
 
+// colors target and other elements (depending on the highlight_mode UI element)/
+// `out_move` should be true if this is a move out of the target.
 function mouseColorEvent(target, sc, fc, out_move) {
 	var nonmatching_display;
 	var highlight_mode = $("#highlight_mode").val();
@@ -132,6 +162,7 @@ function mouseColorEvent(target, sc, fc, out_move) {
 	
 }
 
+// calls mouseColorEvent with "red"
 function mouseOverNode(target) {
 	var sc = "red";
 	var fc = "red";
@@ -140,6 +171,7 @@ function mouseOverNode(target) {
 
 var mouseOverEdge = mouseOverNode;
 
+// calls mouseColorEvent with non-highlight colors for the target"
 function mouseOutNode(target) {
 	var sc = target.getAttribute("nhscolor");
 	var fc = target.getAttribute("nhfcolor");
@@ -164,6 +196,8 @@ function handleClickOnGraph(evt, targetArg) {
 	console.log(pref + " on " + target.tagName + " id = " + target.getAttribute("id") + " curve_id = ", curve_id_str);
 }
 
+// callback for the "Detect Components" button. packages state that
+//	affects backent, does an AJAX POST, and then triggers a page reload.
 function detectComponents() {
 	var val = $('#node_tol_input').val();
 	var valf = Number(val);
@@ -177,10 +211,6 @@ function detectComponents() {
 		alert("Rect axis merge tol must be a number");
 		return;
 	}
-	// var paramList = getSearchParamList();
-	// paramList = insertParam("action", "detect_components", paramList);
-	// paramList = insertParam("node_merge_tol", valf, paramList);
-	// reloadPageWithParamList(paramList);	
 	extract_config.node_merge_tol = valf
 	extract_config.rect_base_intercept_tol = rvalf
 	extract_config.viz_highlight_mode = $('#highlight_mode').val();
@@ -188,13 +218,13 @@ function detectComponents() {
 			"config": JSON.stringify(extract_config),
 		}
 	$.ajax({
-	type: "POST",
-	url: document.location,
-	data: data,
-	success: function() {   
-		location.reload();  
-	}
-});
+		type: "POST",
+		url: document.location,
+		data: data,
+		success: function() {   
+			location.reload();  
+		}
+	});
 }
 
 function add_to_map() {
@@ -210,6 +240,7 @@ function add_to_map() {
 	}
 }
 
+// Toggles extract_config.is_rect_shape (and UI indicator)
 function toggleTreeShape() {
 	var rw = $('#rect_tree_shape_icon').attr("width");
 	var dw= $('#diag_tree_shape_icon').attr("width");
@@ -221,49 +252,43 @@ function toggleTreeShape() {
 }
 
 
+// adds "hidden" attr and sets display to "none"
 function elHiding() {
 	var el = $(this);
 	el.attr("hidden", "yes");
 	el.attr("display", "none");
 }
 
+// removes "hidden" attr and calls displayIfNotHiddenOrTrashed 
 function elUnhide() {
 	var el = $(this);
 	el.removeAttr("hidden");
-	if (! el.attr("trashed") || extract_config.viz_show_trashed) {
-		el.attr("display", "yes");
+	displayIfNotHiddenOrTrashed(this);
+}
+
+// if `predicate` is true, calls elHiding, else elUnhide. Return predicate.
+function hideOrUnhide(predicate, targets) {
+	if (predicate) {
+		targets.each(elHiding);
+	} else {
+		targets.each(elUnhide);
 	}
+	return predicate;
 }
 
 function textHiding(checkbx) {
-	if (checkbx.checked) {
-		$( "#treeholder svg text" ).each(elHiding);
-		extract_config.viz_hide_text = true;
-	} else {
-		$( "#treeholder svg text" ).each(elUnhide);
-		extract_config.viz_hide_text = false;
-	}
+	var targets = $( "#treeholder svg text" );
+	extract_config.viz_hide_text = hideOrUnhide(checkbx.checked, targets);
 }
 
 function nodeHiding(checkbx) {
-	var st = extract_config.viz_show_trashed;
-	if (checkbx.checked) {
-		$( "#treeholder svg circle" ).each(elHiding);
-		extract_config.viz_hide_nodes = true;
-	} else {
-		$( "#treeholder svg circle" ).each(elUnhide);
-		extract_config.viz_hide_nodes = false;
-	}
+	var targets = $( "#treeholder svg circle" );
+	extract_config.viz_hide_nodes = hideOrUnhide(checkbx.checked, targets);
 }
 
 function edgeHiding(checkbx) {
-	if (checkbx.checked) {
-		$( "#treeholder svg path" ).each(elHiding);
-		extract_config.viz_hide_edges = true;
-	} else {
-		$( "#treeholder svg path" ).each(elUnhide);
-		extract_config.viz_hide_edges = false;
-	}
+	var targets = $( "#treeholder svg path" );
+	extract_config.viz_hide_edges = hideOrUnhide(checkbx.checked, targets);
 }
 
 function trashedShowing(checkbx) {
@@ -332,6 +357,7 @@ function rotateOrientationClicked() {
 }
 
 
+// called on page load to set UI elements based on new, global extract_config
 function set_ui_based_on_config(){
 	var rect_el = $('#rect_tree_shape_icon');
 	if (rect_el.length) {
@@ -364,11 +390,6 @@ function set_ui_based_on_config(){
 		$( '#simplify_paths_btn' ).prop('checked', false).trigger("change");
 	}
 	$( "#highlight_mode").val(extract_config.viz_highlight_mode).trigger("change");
-	// var cb_stat = .is(":checked");
-	// if (cb_stat != viz_hide_edges) {
-	// 	edgeHiding
-	// }
-	
 }
 
 /////////////////////////////////////////////////////
