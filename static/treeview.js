@@ -161,8 +161,13 @@ function mouseColorEvent(target, sc, fc, out_move) {
 			}
 			setColorsForNeighbors(target, sc, fc, nonmatching_display);
 		}
+		colorElIfNHColorNonNone(target, sc, fc);
+	} else {
+		if ((! out_move) || (! target.hasAttribute('data-selected'))) {
+			colorElIfNHColorNonNone(target, sc, fc);
+		}
 	}
-	colorElIfNHColorNonNone(target, sc, fc);
+	
 	
 }
 
