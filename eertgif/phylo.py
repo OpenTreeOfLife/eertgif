@@ -42,6 +42,10 @@ class PhyloTree(object):
         id_gen=None,
         tip_dir=None,
     ):
+        log.debug(
+            f"PhyloTree.__init__, tip_dir={repr(tip_dir)}, #connected_nodes = {len(connected_nodes)}"
+        )
+
         self.id_gen = id_gen
         self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
         self.forest = forest
@@ -75,6 +79,10 @@ class PhyloTree(object):
             else:
                 assert ltline.direction == AxisDir.VERTICAL
                 vert_text.append(ltline)
+        log.debug(
+            f"PhyloTree.__init__ {len(ext_nds)} externals, {len(int_nds)} internals"
+        )
+
         # text_bbox = (lx, ly, hx, hy)
         # print(
         #     f"nodes_bbox = {nodes_bbox} text_bbox={text_bbox} {len(horiz_text)}, {len(vert_text)}"
@@ -185,11 +193,44 @@ class PhyloTree(object):
             else:
                 calc_y = lambda el: el.y0
             calc_x = lambda el: (el.x0 + el.x1) / 2.0
-        # debug(f"Trying DIR={repr(tip_dir)} ... len(externals) = {len(externals)}, len(inline_t)={len(inline_t)}")
+        log.debug(
+            f"_try_as_tips_to DIR={repr(tip_dir)} {len(externals)} externals, len(inline_t)={len(inline_t)}"
+        )
+        blob = self._try_match_text(inline_t, externals, calc_x, calc_y)
+        matched_labels, orphan_labels, matched_dists, matched_leaves, unmatched_ext, by_lab = (
+            blob
+        )
+        pma = PhyloMapAttempt(id_gen=self.id_gen)
+        if matched_labels:
+            expected_def_gap = avg_char_width(matched_labels)
+            mean_obs_gap, var_gap = mean_var(matched_dists)
+            pma.add_penalty(Penalty.LABEL_GAP_MEAN, mean_obs_gap)
+            if var_gap:
+                pma.add_penalty(Penalty.LABEL_GAP_STD_DEV, sqrt(var_gap))
+            pma.build_tree_from_tips(
+                tip_dir=tip_dir,
+                internals=internals,
+                matched_lvs=matched_leaves,
+                unmatched_lvs=unmatched_ext,
+                tip_labels=matched_labels,
+                label2leaf=by_lab,
+            )
+        else:
+            # If there are no labels matched, there isn't much point of building a tree..
+            pma.add_penalty(Penalty.UNMATCHED_LABELS, float("inf"))
+        pma.unmatched_ext_nodes = unmatched_ext
+        pma.unused_perpindicular_text = perpindic_t
+        pma.unused_inline_text = orphan_labels
+        return pma
+
+    def _try_match_text(self, inline_t, externals, calc_x, calc_y):
+        if not (inline_t and externals):
+            return [], [], [], [], set(externals), {}
         by_lab, by_ext = {}, {}
         for label_t in inline_t:
             loc = (calc_x(label_t), calc_y(label_t))
             dist, ext = find_closest(loc, externals)
+            assert ext is not None
             by_lab[label_t] = (ext, dist)
             prev = by_ext.get(ext)
             if prev is None or dist < prev[-1]:
@@ -209,25 +250,14 @@ class PhyloTree(object):
         for nd in externals:
             if nd not in matched_leaves:
                 unmatched_ext.add(nd)
-        pma = PhyloMapAttempt(id_gen=self.id_gen)
-        if matched_labels:
-            expected_def_gap = avg_char_width(matched_labels)
-            mean_obs_gap, var_gap = mean_var(matched_dists)
-            pma.add_penalty(Penalty.LABEL_GAP_MEAN, mean_obs_gap)
-            if var_gap:
-                pma.add_penalty(Penalty.LABEL_GAP_STD_DEV, sqrt(var_gap))
-        pma.build_tree_from_tips(
-            tip_dir=tip_dir,
-            internals=internals,
-            matched_lvs=matched_leaves,
-            unmatched_lvs=unmatched_ext,
-            tip_labels=matched_labels,
-            label2leaf=by_lab,
+        return (
+            matched_labels,
+            orphan_labels,
+            matched_dists,
+            matched_leaves,
+            unmatched_ext,
+            by_lab,
         )
-        pma.unmatched_ext_nodes = unmatched_ext
-        pma.unused_perpindicular_text = perpindic_t
-        pma.unused_inline_text = orphan_labels
-        return pma
 
 
 class PhyloTreeData(object):
@@ -291,7 +321,7 @@ class PhyloNode(object):
         if self._label:
             return self._label
         if self.label_obj is not None:
-            return self.label_obj.get_text()
+            return self.label_obj.get_text().strip()
         return None
 
     @property
@@ -591,7 +621,11 @@ class PhyloLegend(object):
         self.legend_pair = min_el
         self.bar = min_el[1]
         self.legend_text = min_el[0]
-        self.edge_len_scaler = as_numeric(min_el[0].get_text())[1] / self.bar.length
+        self.edge_len_scaler = None
         self.unused_text = set([i for i in text_lines if i is not self.legend_text])
         self.unused_nodes = [i for i in connected_nodes if i is not self.bar]
         self.score = abs(DEFAULT_LABEL_GAP - min_d)
+        try:
+            self.edge_len_scaler = as_numeric(min_el[0].get_text())[1] / self.bar.length
+        except:
+            self.score = float("inf")

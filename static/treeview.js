@@ -217,7 +217,7 @@ function bundleGlobalStateForServer() {
 	extract_config.node_merge_tol = valf
 	extract_config.rect_base_intercept_tol = rvalf
 	extract_config.viz_highlight_mode = $('#highlight_mode').val();
-force_trashed_ids	extract_config.force_trashed_ids = [];
+	extract_config.force_trashed_ids = [];
 	var tid = extract_config.force_trashed_ids ;
 	$( "[trashed]" ).each(function() {
 		tid[tid.length] = $(this).attr("id");
