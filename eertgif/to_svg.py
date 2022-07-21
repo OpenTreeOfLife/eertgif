@@ -160,7 +160,7 @@ def text_as_text_el(out, text, xfn, yfn, styling):
     atts = [f'x="{xfn(text.x0)}"', f'y="{midheight}"']
     eertgif_id = getattr(text, "eertgif_id", None)
     if eertgif_id is not None:
-        atts.append(f'eeertgif_id="{eertgif_id}"')
+        atts.append(f'id="{eertgif_id}"')
     length = abs(xfn(text.x1) - xfn(text.x0))
     atts.append(f'textLength="{length}"')
     atts.append(f'textAdjust="spacingAndGlyphs"')
