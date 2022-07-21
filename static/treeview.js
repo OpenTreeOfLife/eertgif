@@ -131,6 +131,7 @@ function mouseColorEvent(target, sc, fc, out_move) {
 	colorElIfNHColorNonNone(target, sc, fc);
 	
 }
+
 function mouseOverNode(target) {
 	var sc = "red";
 	var fc = "red";
@@ -147,8 +148,11 @@ function mouseOutNode(target) {
 
 var mouseOutEdge = mouseOutNode;
 
-function handleClickOnGraph(evt) {
-	var target = evt.target;
+function handleClickOnGraph(evt, targetArg) {
+	var target = targetArg;
+	if (!target) {
+		target = evt.target;
+	}
 	var curve_id_str = "null";
 	if (target.hasAttribute("curve_id")) {
 		curve_id_str = target.getAttribute("curve_id");
@@ -394,6 +398,20 @@ function strictIntersectionSelector(context) {
   })
 }
 
+function highlightElement(element) {
+	colorElIfNHColorNonNone(element, "red", "red");
+}
+
+function unhighlightElement(element) {
+	var sc = element.getAttribute("nhscolor");
+	var fc = element.getAttribute("nhfcolor");
+	colorElIfNHColorNonNone(element, sc, fc);
+}
+
+function noOp() {
+}
+
+
 window.svgDragSelectOptions = {
   svg: document.getElementsByTagName('svg')[0],
   onSelectionStart: function (selectionStart) {
@@ -401,9 +419,13 @@ window.svgDragSelectOptions = {
     const selectedElements = selectionStart.svg.querySelectorAll('[data-selected]')
     for (let i = 0; i < selectedElements.length; i++) {
       selectedElements[i].removeAttribute('data-selected')
-      unhighlightElement(element);
+      unhighlightElement(selectedElements[i]);
     }
     document.getElementById('selected-items').value = ''
+    var path = selectionStart.pointerEvent.path;
+    if (path.length && path[0].tagName !== "svg") {
+    	handleClickOnGraph(selectionStart.pointerEvent, path[0]);
+    }
   },
   onSelectionEnd: function (selectionEnd) {
     console.log("onSelectionEnd", selectionEnd)
@@ -421,7 +443,9 @@ window.svgDragSelectOptions = {
     document.getElementById('selected-items').value = selectionChange.selectedElements
       .map(function (element) { return element.getAttribute('id') })
       .sort()
-      .join('\n')
+      .join('\n');
+
+    selectionChange.pointerEvent.preventDefault();
   },
   selector: strictIntersectionSelector
 }

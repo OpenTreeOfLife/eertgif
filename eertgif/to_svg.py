@@ -165,6 +165,7 @@ def text_as_text_el(out, text, xfn, yfn, styling):
     atts.append(f'textLength="{length}"')
     atts.append(f'textAdjust="spacingAndGlyphs"')
     atts.append(f'font-size="{int(text.height)}px"')
+    atts.append(f'ondragover=";"')
     if text.is_all_one_font:
         _append_atts_for_font(text.font, atts)
         proc = html.escape(text.get_text().strip())
