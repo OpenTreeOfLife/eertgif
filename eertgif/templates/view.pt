@@ -5,7 +5,6 @@
     <link rel="stylesheet" type="text/css" href="/static/eertgif.css" />
 </head>
 <body>
-<script src="/static/jquery-3.6.0.min.js"></script>
     <script>
 var extract_config = null;
     </script>
@@ -56,13 +55,12 @@ var extract_config = null;
     <script>
 extract_config = JSON.parse('{"orientation": "right", "is_rect_shape": true}');
     </script>
-        <script src="/static/treeview.js"></script>
         <div id="tree-button-div"><span class="button" onclick="toggleCurveSimplify()"><span>Toggle curve simplification</span></span></div>
 
         <div tal:condition="svg">
             <div id="treeholder" tal:content="structure svg"></div>
             <!-- emulating selection area from https://luncheon.github.io/svg-drag-select/-->
-            <textarea id="selected-items" disabled rows="10"></textarea>
+            <textarea id="selected-items" disabled rows="0"></textarea>
         </div>
     </div>
     <div tal:condition="status == 'no trees'">
@@ -71,9 +69,15 @@ extract_config = JSON.parse('{"orientation": "right", "is_rect_shape": true}');
 
     <p>Back to full study view at <a href="/view/${tag}">view/${tag}</a>.</p>
     <hr />
+    <script src="/static/svg-drag-select-0.4.2.js"></script>
+    <script src="/static/jquery-3.6.0.min.js"></script>
+    <script src="/static/treeview.js"></script>
 </div>
 
 <p>When done with this study, you can return to the <a href="/">home</a> index for the eertgif.</p>
 
+
+
+ 
 </body>
 </html>

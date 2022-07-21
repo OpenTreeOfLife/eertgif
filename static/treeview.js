@@ -200,27 +200,40 @@ function handleClickOnGraph(evt, targetArg) {
 	console.log(pref + " on " + target.tagName + " id = " + target.getAttribute("id") + " curve_id = ", curve_id_str);
 }
 
-// callback for the "Detect Components" button. packages state that
-//	affects backent, does an AJAX POST, and then triggers a page reload.
-function detectComponents() {
+
+function bundleGlobalStateForServer() {
 	var val = $('#node_tol_input').val();
 	var valf = Number(val);
 	if (val === "" || isNaN(valf)) {
 		alert("node tolerance for component detection must be a number");
-		return;
+		return null;
 	}
 	var rval = $('#rect_axis_merge_tol').val();
 	var rvalf = Number(rval);
 	if (rval === "" || isNaN(rvalf)) {
 		alert("Rect axis merge tol must be a number");
-		return;
+		return null;
 	}
 	extract_config.node_merge_tol = valf
 	extract_config.rect_base_intercept_tol = rvalf
 	extract_config.viz_highlight_mode = $('#highlight_mode').val();
-	data = {"action":"detect_components",
-			"config": JSON.stringify(extract_config),
-		}
+	extract_config.trashed_ids = [];
+	var tid = extract_config.trashed_ids ;
+	$( "[trashed]" ).each(function() {
+		tid[tid.length] = $(this).attr("id");
+	});
+	data = {"config": JSON.stringify(extract_config),
+	}
+	return data
+}
+// callback for the "Detect Components" button. packages state that
+//	affects backent, does an AJAX POST, and then triggers a page reload.
+function detectComponents() {
+	var data = bundleGlobalStateForServer();
+	if (data === null) {
+		return;
+	}
+	data["action"] = "detect_components";
 	$.ajax({
 		type: "POST",
 		url: document.location,
@@ -463,6 +476,15 @@ function moveSelectionToTrashed() {
 	}
 	trashedShowing($("#show_trashed_btn").get(0));
 	clearSelection();
+}
+
+function restoreTrashed() {
+	document.getElementById('trashed-items').value = '';
+	const selectedElements = window.svgDragSelectOptions.svg.querySelectorAll('[trashed]');
+	for (let i = 0; i < selectedElements.length; i++) {
+		selectedElements[i].removeAttribute('trashed')
+		unhighlightElement(selectedElements[i]);
+	}
 }
 
 window.svgDragSelectOptions = {

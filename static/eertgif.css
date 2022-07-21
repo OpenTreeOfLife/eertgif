@@ -2,6 +2,14 @@
 .button {
   background-color: lightblue;
   display: inline-block;
+  height: 20px;
+  text-align: center;
+}
+
+.bigbutton {
+   border-radius: 10px;
+  background-color: lightgreen;
+  display: inline-block;
   height: 25px;
   text-align: center;
 }
@@ -37,9 +45,9 @@ path[data-selected] { fill: #f84f79; }
 
 #trashed-items {
   position: fixed;
-  margin-bottom: 1.5em;
-  right: 1.5em;
-  top: 1.5em;
+  margin-top: 1.5em;
+  left: 1.5em;
+  bottom: 1.5em;
   width: 8rem;
   background-color: rgba(255,255,255,.8);
 }
@@ -48,9 +56,9 @@ path[data-selected] { fill: #f84f79; }
   vertical-align: middle;
   horizontal-align: middle;
   position: fixed;
-  margin-bottom: 0.5em;
-  right: 1.5em;
-  top: 0.2em;
+  margin-top: 0.5em;
+  left: 1.5em;
+  bottom: 0.2em;
   width: 8rem;
   background-color: rgba(255,255,255,.6);
 }

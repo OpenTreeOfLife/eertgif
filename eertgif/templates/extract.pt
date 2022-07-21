@@ -28,13 +28,16 @@ extract_config = ${cfg_json};
             <option value="neighbors-only">neighbors-only</option>
             <option value="component">+ component</option>
             <option value="component-only">component only</option></select>
-        <input type="checkbox" id="show_trashed_btn" name="show_trashed_btn" onchange="trashedShowing(this)"><label for="show_trashed_btn" style="color:cyan">Show Trashed</label>&nbsp;
+        <input type="checkbox" id="show_trashed_btn" name="show_trashed_btn" onchange="trashedShowing(this)"><label for="show_trashed_btn" style="color:cyan">Show Trashed</label>&nbsp;&nbsp;
+        <span class="bigbutton" onclick="restoreTrashed()" display="none"><span>&nbsp;Restore Trashed Items&nbsp;</span></span>
         <hr />
-        <strong>Graph Components:</strong> <span class="button" onclick="toggleTreeShape()"><img id="rect_tree_shape_icon" width="20" height="20" src="/static/rect-tree.png" alt="rectangular tree shape icon" /><img id="diag_tree_shape_icon" width="0" height="20" src="/static/diag-tree.png" alt="diagnoal tree shape icon" /></span>&nbsp;
+        <strong>Graph Components:</strong>&nbsp;
+        <span class="button" onclick="toggleTreeShape()"><img id="rect_tree_shape_icon" width="20" height="20" src="/static/rect-tree.png" alt="rectangular tree shape icon" /><img id="diag_tree_shape_icon" width="0" height="20" src="/static/diag-tree.png" alt="diagnoal tree shape icon" /></span>&nbsp;
+        <span class="button" onclick="rotateOrientationClicked()"><img id="rotate_cw_icon" width="20" src="/static/rotate.png" alt="rotate orientation 90 degrees icon" /></span>&nbsp;
         <label for="node_tol_input" >Node merge tol.</label><input type="text" id="node_tol_input" name="node_tol" size="6" value="${cfg.node_merge_tol}" />&nbsp&nbsp
-        <label for="rect_axis_merge_tol" >Rect axis merge tol.</label><input type="text" id="rect_axis_merge_tol" size="6" name="rect_axis_merge_tol" value="${cfg.rect_base_intercept_tol}" />&nbsp&nbsp<span class="button" onclick="detectComponents()" display="none"><span>detect components</span></span>
+        <label for="rect_axis_merge_tol" >Rect axis merge tol.</label><input type="text" id="rect_axis_merge_tol" size="6" name="rect_axis_merge_tol" value="${cfg.rect_base_intercept_tol}" />&nbsp;&nbsp;<span class="bigbutton" onclick="detectComponents()" display="none"><span>&nbsp;Detect Components&nbsp;</span></span>
         <hr />
-        <span class="button" onclick="rotateOrientationClicked()"><img id="rotate_cw_icon" width="20" src="/static/rotate.png" alt="rotate orientation 90 degrees icon" /></span> 
+        
     </div>
 
     <hr />
@@ -42,15 +45,17 @@ extract_config = ${cfg_json};
         <div id="treeholder" tal:content="structure svg"></div>
         <!-- emulating selection area from https://luncheon.github.io/svg-drag-select/-->
         <div class="trashedfield">
-            <label for="trashed-items" style="color:red">Trashed</label>
+            <label for="trashed-items" style="background-color:lightgrey">Trashed by you</label>
             <textarea id="trashed-items" disabled rows="10"></textarea>
         </div>
         <div class="selectionfield">
-            <label for="selected-items" style="color:red">Selected</label>
+            <label for="selected-items" style="background-color:lightgrey">Selected</label>
             <textarea id="selected-items" disabled rows="10"></textarea>
         </div>
+        <hr />
+        <br /> <p/> <br /> <p/> <br /> <p/>
     </div>
-    <hr />
+    
 </div>
 <div tal:condition="status == 'no trees'">
     <p style="font-size:160%;">This regions has been flagged as lacking trees</p>
@@ -59,6 +64,8 @@ extract_config = ${cfg_json};
 <p>When done with this tree you can go back to <a href="/view/${tag}?page=${region_id}">view mode</a>.</p>
 <hr />
 
+        <br /> <p/> <br /> <p/> <br /> <p/> 
+        <br /> <p/> <br /> <p/> <br /> <p/> 
 <script src="/static/svg-drag-select-0.4.2.js"></script>
 <script src="/static/jquery-3.6.0.min.js"></script>
 <script src="/static/treeview.js"></script>

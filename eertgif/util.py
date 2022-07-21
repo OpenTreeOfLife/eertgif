@@ -66,7 +66,7 @@ class AxisDir(IntEnum):
 
 
 CARDINAL = (Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST)
-BOX_TO_LINE_TOL = 4.0e-6
+BOX_TO_LINE_TOL = 4.0
 
 
 class DisplayMode(IntEnum):
