@@ -147,8 +147,12 @@ class EertgifView:
     def _repickle(self, page_id, obj, top_cont):
         orig_pickle_path = os.path.join(top_cont.par_dir, f"{page_id}.pickle")
         empout, tmp_path = tempfile.mkstemp(dir=top_cont.par_dir)
-        with open(tmp_path, "wb") as empout:
-            obj.pickle(empout)
+        try:
+            with open(tmp_path, "wb") as empout:
+                obj.pickle(empout)
+        except:
+            os.path.remove(tmp_path)
+            raise
         with _upload_lock:
             os.rename(tmp_path, orig_pickle_path)
 

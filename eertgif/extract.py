@@ -235,10 +235,7 @@ class ExtractionManager(object):
     def as_svg_str(self):
         from .to_svg import get_svg_str
 
-        if self.forest is None:
-            return get_svg_str(obj_container=self)
-        if self.best_tree is None:
-            return get_svg_str(obj_container=self)
+        return get_svg_str(obj_container=self)
 
     def _update_by_id_map(self):
         m = {}
