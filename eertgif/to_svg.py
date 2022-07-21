@@ -128,14 +128,28 @@ def to_svg(out, obj_container=None, styling=None):
         for comp_idx, nd_list in by_comp_idx.items():
             min_id = min([nd.eertgif_id for nd in nd_list])
             to_sort.append((len(nd_list), min_id, comp_idx, nd_list))
+        to_sort.sort(reverse=True)
 
         styling.comp_idx2color = {}
-        to_sort.sort(reverse=True)
-        for n, tup in enumerate(to_sort):
-            comp_idx = tup[-2]
-            col_idx = n if n < len(styling.color_list) else -1
-            color = styling.color_list[col_idx]
-            styling.comp_idx2color[comp_idx] = color
+        if (
+            obj_container.display_mode == DisplayMode.PHYLO
+            and obj_container.best_tree is not None
+        ):
+            tree = obj_container.best_tree
+            for n, tup in enumerate(to_sort):
+                comp_idx = tup[-2]
+                styling.comp_idx2color[comp_idx] = "grey"
+            styling.comp_idx2color[tree.component_idx] = "black"
+            if obj_container.best_legend and obj_container.best_legend.bar:
+                styling.comp_idx2color[
+                    obj_container.best_legend.bar.component_idx
+                ] = "blue"
+        else:
+            for n, tup in enumerate(to_sort):
+                comp_idx = tup[-2]
+                col_idx = n if n < len(styling.color_list) else -1
+                color = styling.color_list[col_idx]
+                styling.comp_idx2color[comp_idx] = color
         for edge in edge_set:
             curve_as_path(out, edge.curve, xfn, yfn, styling=styling, edge=edge)
         for n, tup in enumerate(to_sort):
@@ -150,14 +164,34 @@ def to_svg(out, obj_container=None, styling=None):
                 log.debug(f"Skipping {curve} in SVG export...\n")
 
     # log.debug(f"obj_container.text_lines = {obj_container.nontext_objs}")
-    for n, text in enumerate(obj_container.text_lines):
-        text_as_text_el(out, text, xfn, yfn, styling)
+    if obj_container.display_mode == DisplayMode.PHYLO:
+        tree = obj_container.best_tree
+        tr_unused = set() if tree is None else set(tree.unused_text)
+        legend = obj_container.best_legend
+        leg_unused = set() if legend is None else set(legend.unused_text)
+        unused = tr_unused.intersection(leg_unused)
+        u_atts = ['fill="grey"']
+        tr_atts = ['fill="black"']
+        leg_atts = ['fill="blue"']
+        for n, text in enumerate(obj_container.text_lines):
+            if text in unused:
+                ini_atts = u_atts
+            elif text in tr_unused:
+                ini_atts = leg_atts
+            else:
+                ini_atts = tr_atts
+            text_as_text_el(out, text, xfn, yfn, styling, ini_atts)
+    else:
+        for n, text in enumerate(obj_container.text_lines):
+            text_as_text_el(out, text, xfn, yfn, styling)
     out.write("</svg>")
 
 
-def text_as_text_el(out, text, xfn, yfn, styling):
+def text_as_text_el(out, text, xfn, yfn, styling, ini_atts=None):
     midheight = (yfn(text.y1) + yfn(text.y0)) / 2
     atts = [f'x="{xfn(text.x0)}"', f'y="{midheight}"']
+    if ini_atts:
+        atts.extend(ini_atts)
     eertgif_id = getattr(text, "eertgif_id", None)
     if eertgif_id is not None:
         atts.append(f'id="{eertgif_id}"')

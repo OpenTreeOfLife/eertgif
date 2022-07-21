@@ -129,6 +129,18 @@ class PhyloTree(object):
         # self.num_tips = best_blob[3]
 
     @property
+    def component_idx(self):
+        if self.root is None:
+            return None
+        return self.root.vnode.component_idx
+
+    @property
+    def unused_text(self):
+        if self.pma is None:
+            return []
+        return self.pma.unused_text
+
+    @property
     def num_tips(self):
         return len(self.tips())
 
