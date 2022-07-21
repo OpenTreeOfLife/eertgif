@@ -244,6 +244,20 @@ class EertgifView:
             phylo_stats = {}
         else:
             phylo_stats = {"ntips": em.best_tree.num_tips}
+            bl = em.best_legend
+            tl = []
+            if bl is not None:
+                if bl.legend_text:
+                    tl.append(f'text="{bl.legend_text.get_text().strip()}"')
+                if bl.bar and bl.bar.length:
+                    tl.append(f'length="{bl.bar.length:.2f}"')
+                if bl.edge_len_scaler:
+                    tl.append(f'scaler="{bl.edge_len_scaler:.2g}"')
+            if tl:
+                phylo_stats["legend_str"] = " ".join(tl)
+            else:
+                phylo_stats["legend_str"] = "not found"
+
         d = {
             "tag": tag,
             "region_id": page_id,

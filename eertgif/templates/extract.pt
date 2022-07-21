@@ -41,7 +41,7 @@ extract_config = ${cfg_json};
         <strong>Tree Extraction:</strong>&nbsp;
         <span class="bigbutton" onclick="extractTree()" display="none"><span>&nbsp;Attempt Tree Extraction&nbsp;</span></span>&nbsp;
         <span tal:condition="not phylo_stats">No trees extracted.</span>
-        <span tal:condition="phylo_stats">1 tree with ${phylo_stats['ntips']} tips extracted.</span>
+        <span tal:condition="phylo_stats">1 tree with ${phylo_stats['ntips']} tips extracted. Legend: ${phylo_stats['legend_str']}</span>
         
     </div>
 
