@@ -260,6 +260,22 @@ class PhyloTree(object):
         )
 
 
+def min_coord_north(n):
+    return n.y
+
+
+def min_coord_south(n):
+    return -n.y
+
+
+def min_coord_east(n):
+    return n.x
+
+
+def min_coord_west(n):
+    return -n.x
+
+
 class PhyloTreeData(object):
     """Blob of data common to all nodes/edges"""
 
@@ -281,10 +297,10 @@ class PhyloTreeData(object):
     def tip_dir(self, tip_dir):
         self._tip_dir = tip_dir
         dir2min_coord = {
-            Direction.NORTH: lambda n: n.y,
-            Direction.SOUTH: lambda n: -n.y,
-            Direction.EAST: lambda n: n.x,
-            Direction.WEST: lambda n: -n.x,
+            Direction.NORTH: min_coord_north,
+            Direction.SOUTH: min_coord_south,
+            Direction.EAST: min_coord_east,
+            Direction.WEST: min_coord_west,
         }
         self.pos_min_fn = dir2min_coord[tip_dir]
         dir_for_last_child = rotate_cw(tip_dir)
@@ -414,7 +430,9 @@ class PhyloNode(object):
             if adj is par:
                 continue
             if adj is self:
-                raise CycleDetected("I'm just beside myself")
+                # raise CycleDetected("I'm just beside myself")
+                log.debug("I'm just beside myself cycle, skipping edge")
+                continue
             self._unsorted_children.append(adj)
             adj.root_based_on_par(par=self, seen=seen)
         self.sort_children()
