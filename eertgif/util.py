@@ -166,8 +166,11 @@ def mean_vector(list_of_pairs):
         return 0.0, 0.0
     sum_x_diff, sum_y_diff = 0.0, 0.0
     for first, second in list_of_pairs:
-        sum_x_diff += second[0] - first[0]
-        sum_y_diff += second[1] - first[1]
+        x_off = second[0] - first[0]
+        y_off = second[1] - first[1]
+        sum_x_diff += x_off
+        sum_y_diff += y_off
+        log.debug(f"x_off={x_off}   y_off={y_off}")
     n = len(list_of_pairs)
     return sum_x_diff / n, sum_y_diff / n
 
