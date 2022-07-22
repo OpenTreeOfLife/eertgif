@@ -5,7 +5,7 @@ from typing import List, Tuple, Union, Optional
 
 from pdfminer.utils import Point
 from .point_map import PointMap
-from .util import Direction, calc_dist, all_corner_shapes, AxisDir
+from .util import Direction, calc_dist, all_corner_shapes, AxisDir, find_closest
 from .safe_containers import SafeCurve, SafeTextLine, CurveShape
 
 log = logging.getLogger(__name__)
@@ -227,11 +227,12 @@ class PlanarContainer(object):
         min_diff = tol
         min_el = None
         for row_x, row_map in rows:
-            for cell_y, el in row_map.items():
-                dist = calc_dist((ptx, pty), (row_x, cell_y))
-                if dist < min_diff:
-                    min_diff = dist
-                    min_el = el
+            for cell_y, nd_list in row_map.items():
+                for el in nd_list:
+                    dist = calc_dist((ptx, pty), el.loc)
+                    if dist < min_diff:
+                        min_diff = dist
+                        min_el = el
         return min_el
 
     def find_exact(self, point: Point) -> Union[None, Node]:
@@ -239,7 +240,12 @@ class PlanarContainer(object):
         row_map = self.find_row_exact(ptx)
         if row_map is None:
             return None
-        return row_map.get(pty)
+        nd_list = row_map.get(pty)
+        if nd_list is None:
+            return None
+        if len(nd_list) == 1:
+            return nd_list[0]
+        return find_closest(point, nd_list)[-1]  # func in util.py
 
     def find_row_exact(self, x: float) -> Optional[PointMap]:
         return self.by_x.get(x)
@@ -260,7 +266,7 @@ class PlanarContainer(object):
         row_map = self.by_x.setdefault(ptx, PointMap())
         nd = Node(ptx, pty, id_gen=self.id_gen)
         self._all_nodes.append(nd)
-        row_map.setdefault(pty, nd)
+        row_map.setdefault(pty, []).append(nd)
         return nd
 
     def remove_node(self, nd):
@@ -271,7 +277,10 @@ class PlanarContainer(object):
                 if nd_ref is nd:
                     del_y_key = y
             if del_y_key:
-                del row[del_y_key]
+                nd_list = row[del_y_key]
+                nd_list.remove(nd)
+                if not nd_list:
+                    del row[del_y_key]
             if not row:
                 del_top_key = x
         if del_top_key is not None:
@@ -316,7 +325,8 @@ class GraphFromEdges(object):
         assert curve.eff_diagonal is not None
         pt1, pt2 = curve.eff_diagonal[0], curve.eff_diagonal[-1]
         nd1 = self.find_or_insert_node(pt1)[0]
-        nd2 = self.find_or_insert_node(pt2)[0]
+        # disallow self loops
+        nd2 = self.find_or_insert_node(pt2, avoid=nd1)[0]
         edge = Edge(curve, nd1, nd2, id_gen=self.id_gen)
         self.edges.add(edge)
         return edge
@@ -377,15 +387,18 @@ class GraphFromEdges(object):
         self.debug_check()
 
     def find_or_insert_node(
-        self, point: Point, tol: float = None
+        self, point: Point, tol: float = None, avoid=None
     ) -> Tuple[Node, bool, bool]:
         """Returns (node, was_inserted, is_exact)"""
         t = tol if tol is not None else self.tol
         nd = self.nodes.find_exact(point)
         if nd is not None:
+            if nd is avoid:
+                nd = self.nodes.new_at(point)
+                return nd, True, True
             return nd, False, True
         nd = self.nodes.find_closest(point, t)
-        if nd is not None:
+        if (nd is not None) and (nd is not avoid):
             return nd, False, False
         nd = self.nodes.new_at(point)
         return nd, True, True

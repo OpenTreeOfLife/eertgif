@@ -302,9 +302,8 @@ class PhyloTree(object):
             loc = (calc_x(label_t) - mean_x_off, calc_y(label_t) - mean_y_off)
             dist, ext = find_closest(loc, unmatched_lvs)
             old = by_lab[label_t]
-            if (
-                dist > 2 * old[1]
-            ):  # TODO make more generic. currently "not worse than twice as far..."
+            if dist > 2 * old[1]:
+                # TODO make more generic. currently "not worse than twice as far..."
                 continue
             by_lab[label_t] = (ext, dist)
             prev = by_ext.get(ext)

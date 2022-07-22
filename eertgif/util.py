@@ -109,6 +109,7 @@ def calc_dist(pt1: Point, pt2: Point) -> float:
 
 
 def find_closest(loc: Point, el_list: Iterable[Any]) -> Tuple[float, Any]:
+    """Uses .loc of every el in el_list."""
     dist, closest = float("inf"), None
     for el in el_list:
         d = calc_dist(loc, el.loc)
