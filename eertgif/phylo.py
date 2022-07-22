@@ -47,6 +47,11 @@ class PhyloTree(object):
             f"PhyloTree.__init__, tip_dir={repr(tip_dir)}, #connected_nodes = {len(connected_nodes)}"
         )
 
+        # id_list = [i.eertgif_id for i in text_lines]
+        # assert 136 not in id_list
+        # assert 126 not in id_list
+        # assert 123 not in id_list
+
         self.id_gen = id_gen
         self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
         self.forest = forest
@@ -270,7 +275,8 @@ class PhyloTree(object):
         # Use the average offset between matched text and tips
         # to provide a better expected location for a tip's text
         offset_vec = [
-            (ext.loc, (calc_x(text), calc_y(text))) for ext, text in match_pairs
+            (ext.loc, (calc_x(text), calc_y(text)), text.get_text())
+            for ext, text in match_pairs
         ]
         mean_x_off, mean_y_off = mean_vector(offset_vec)
         log.debug(f"mean_offset = {(mean_x_off, mean_y_off)}")

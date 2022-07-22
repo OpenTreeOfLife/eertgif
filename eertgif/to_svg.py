@@ -181,13 +181,17 @@ def to_svg(out, obj_container=None, styling=None):
             else:
                 ini_atts = tr_atts
             text_as_text_el(out, text, xfn, yfn, styling, ini_atts)
+        for n, text in enumerate(obj_container.trashed_text):
+            text_as_text_el(out, text, xfn, yfn, styling, u_atts, is_trashed=True)
     else:
         for n, text in enumerate(obj_container.text_lines):
             text_as_text_el(out, text, xfn, yfn, styling)
+        for n, text in enumerate(obj_container.trashed_text):
+            text_as_text_el(out, text, xfn, yfn, styling, is_trashed=True)
     out.write("</svg>")
 
 
-def text_as_text_el(out, text, xfn, yfn, styling, ini_atts=None):
+def text_as_text_el(out, text, xfn, yfn, styling, ini_atts=None, is_trashed=False):
     midheight = (yfn(text.y1) + yfn(text.y0)) / 2
     atts = [f'x="{xfn(text.x0)}"', f'y="{midheight}"']
     if ini_atts:
@@ -200,6 +204,8 @@ def text_as_text_el(out, text, xfn, yfn, styling, ini_atts=None):
     atts.append(f'textAdjust="spacingAndGlyphs"')
     atts.append(f'font-size="{int(text.height)}px"')
     atts.append(f'ondragover=";"')
+    if is_trashed:
+        atts.append('trashed="yes"')
     if text.is_all_one_font:
         _append_atts_for_font(text.font, atts)
         proc = html.escape(text.get_text().strip())

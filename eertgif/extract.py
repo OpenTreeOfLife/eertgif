@@ -405,13 +405,25 @@ class ExtractionManager(object):
         mergeable.sort()
         return mergeable
 
+    def clear_trees(self):
+        self.best_tree, self.best_legend = None, None
+        self.display_mode = DisplayMode.COMPONENTS
+        if self.forest:
+            self.forest.clear_trees()
+
     def detect_components(
         self, node_merge_tol=None, suppress_update_map=False, suppress_filter=False
     ):
+        self.clear_trees()
         if not suppress_filter:
             filter_changed = self.filter()
         else:
             filter_changed = False
+        # id_list = [i.eertgif_id for i in self.text_lines]
+        # assert 136 not in id_list
+        # assert 126 not in id_list
+        # assert 123 not in id_list
+
         node_merge_tol = (
             node_merge_tol if node_merge_tol is not None else self.node_merge_tol
         )
@@ -444,6 +456,12 @@ class ExtractionManager(object):
         self.detect_components(suppress_update_map=True)
         extra_lines = set(self.text_lines)
         best_tree, best_score = None, float("inf")
+
+        # id_list = [i.eertgif_id for i in self.text_lines]
+        # assert 136 not in id_list
+        # assert 126 not in id_list
+        # assert 123 not in id_list
+
         for n, c in enumerate(self.forest.components):
             if len(c) > 4:
                 tree = self.forest.interpret_as_tree(

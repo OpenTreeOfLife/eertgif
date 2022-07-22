@@ -417,6 +417,10 @@ class Forest(object):
         self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
         self.rect_base_intercept_tol = None
 
+    def clear_trees(self):
+        self.trees.clear()
+        self.legends.clear()
+
     def _post_merge_hook(self, c1_idx, c2_idx):
         assert c1_idx != c2_idx
         min_idx, max_idx = min(c1_idx, c2_idx), max(c1_idx, c2_idx)
