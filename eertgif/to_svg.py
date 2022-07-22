@@ -186,8 +186,9 @@ def to_svg(out, obj_container=None, styling=None):
     else:
         for n, text in enumerate(obj_container.text_lines):
             text_as_text_el(out, text, xfn, yfn, styling)
-        for n, text in enumerate(obj_container.trashed_text):
-            text_as_text_el(out, text, xfn, yfn, styling, is_trashed=True)
+        if obj_container.display_mode != DisplayMode.CURVES_AND_TEXT:
+            for n, text in enumerate(obj_container.trashed_text):
+                text_as_text_el(out, text, xfn, yfn, styling, is_trashed=True)
     out.write("</svg>")
 
 

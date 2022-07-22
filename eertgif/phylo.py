@@ -34,6 +34,12 @@ class CycleDetected(ValueError):
         ValueError.__init__(self, msg)
 
 
+class LocLabWrap(object):
+    def __init__(self, loc, label):
+        self.loc = loc
+        self.label = label
+
+
 class PhyloTree(object):
     def __init__(
         self,
@@ -232,6 +238,7 @@ class PhyloTree(object):
                 unmatched_lvs=unmatched_ext,
                 tip_labels=matched_labels,
                 label2leaf=by_lab,
+                unmatched_labels=orphan_labels,
             )
         else:
             # If there are no labels matched, there isn't much point of building a tree..
@@ -247,15 +254,20 @@ class PhyloTree(object):
         # first level matching:
         #   if an external node and a text object are
         #   closest to each other, then we call them a match
-        by_lab, by_ext = {}, {}
+        by_lab = {}
+        label_wrappers = []
         for label_t in inline_t:
             loc = (calc_x(label_t), calc_y(label_t))
             dist, ext = find_closest(loc, externals)
             assert ext is not None
             by_lab[label_t] = (ext, dist)
-            prev = by_ext.get(ext)
-            if prev is None or dist < prev[-1]:
-                by_ext[ext] = (label_t, dist)
+            label_wrappers.append(LocLabWrap(loc=loc, label=label_t))
+        by_ext = {}
+        for ext in externals:
+            dist, lw = find_closest(ext.loc, label_wrappers)
+            # log.debug(f"first level register {label_t.get_text().strip()} with dist={dist} {(ext.x, ext.y)} -> {loc}")
+            by_ext[ext] = (lw.label, dist)
+
         matched_labels, lev1_orphans = [], []
         matched_leaves = set()
         matched_dists = []
@@ -265,12 +277,17 @@ class PhyloTree(object):
             ext, dist = by_lab[label_t]
             if by_ext.get(ext, [None, None])[0] is label_t:
                 matched_labels.append(label_t)
+                lt = (calc_x(label_t), calc_y(label_t))
+                log.debug(
+                    f"first level match {label_t.get_text().strip()} with dist={dist} {(ext.x, ext.y)} -> {lt}"
+                )
                 matched_dists.append(dist)
                 matched_leaves.add(ext)
                 match_pairs.append((ext, label_t))
                 unmatched_lvs.remove(ext)
             else:
                 lev1_orphans.append(label_t)
+
         # Level 2 matching.
         # Use the average offset between matched text and tips
         # to provide a better expected location for a tip's text
@@ -299,6 +316,9 @@ class PhyloTree(object):
             if ext not in unmatched_lvs:
                 orphan_labels.add(label_t)
             elif by_ext.get(ext, [None, None])[0] is label_t:
+                log.debug(
+                    f"second level match {label_t.get_text().strip()} with dist={dist}"
+                )
                 matched_labels.append(label_t)
                 matched_dists.append(dist)
                 matched_leaves.add(ext)
@@ -588,6 +608,7 @@ class PhyloMapAttempt(object):
         unmatched_lvs: Set[Node],
         tip_labels: List[SafeTextLine],
         label2leaf: Dict[SafeTextLine, Tuple[Node, float]],
+        unmatched_labels: Set[Text],
     ) -> PhyloNode:
         try:
             node2phyn = self._build_adj(
@@ -602,6 +623,21 @@ class PhyloMapAttempt(object):
             log.exception("cycle detected in tree build_tree_from_tips")
             self.root = None
             return None
+
+        if tip_dir in (Direction.EAST, Direction.WEST):
+            perp_coord_leaf_list = [
+                (i.y, i.x, i.eertgif_id, i) for i in root.post_order() if i.is_tip
+            ]
+        else:
+            perp_coord_leaf_list = [
+                (i.x, i.y, i.eertgif_id, i) for i in root.post_order() if i.is_tip
+            ]
+        perp_coord_leaf_list.sort()
+        if len(perp_coord_leaf_list) > 2:
+            first_tup, last_tup = perp_coord_leaf_list[0], perp_coord_leaf_list[-1]
+            tot_dist = last_tup[0] - first_tup[0]
+            n_tips = len(perp_coord_leaf_list)
+
         for leaf in unmatched_lvs:
             phynd = node2phyn[leaf]
             if phynd is not root:
