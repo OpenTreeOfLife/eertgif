@@ -141,6 +141,12 @@ class PhyloTree(object):
         # self.num_tips = best_blob[3]
 
     @property
+    def matched_phy_leaves(self):
+        if self.pma is None:
+            return None
+        return self.pma.matched_phy_leaves
+
+    @property
     def component_idx(self):
         if self.root is None:
             return None
@@ -577,6 +583,7 @@ class PhyloMapAttempt(object):
         self.unused_perpindicular_text = []
         self.unused_inline_text = []
         self.messages = []
+        self.matched_phy_leaves = set()
         self.phy_ctx = None
 
     @property
@@ -642,6 +649,7 @@ class PhyloMapAttempt(object):
             if phynd is not root:
                 self.add_penalty(Penalty.UNMATCHED_LABELS, 1)
         root.collapse_short_internals(MIN_BR_TOL)
+        self.matched_phy_leaves = set([node2phyn[i] for i in matched_lvs])
         return root
 
     def _root_by_position(

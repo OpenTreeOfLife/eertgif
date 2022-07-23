@@ -133,6 +133,12 @@ function setColorsForNeighbors(el, stroke_color, fill_color, nonmatching_display
 	colorComSepList(el.getAttribute("nodes"), stroke_color, fill_color);
 }
 
+function colorElIsSelectionAndNonNone(target, sc, fc, out_move) {
+	if ((! out_move) || (! target.hasAttribute('data-selected'))) {
+		colorElIfNHColorNonNone(target, sc, fc);
+	}
+}
+
 
 // colors target and other elements (depending on the highlight_mode UI element)/
 // `out_move` should be true if this is a move out of the target.
@@ -163,13 +169,55 @@ function mouseColorEvent(target, sc, fc, out_move) {
 		}
 		colorElIfNHColorNonNone(target, sc, fc);
 	} else {
-		if ((! out_move) || (! target.hasAttribute('data-selected'))) {
-			colorElIfNHColorNonNone(target, sc, fc);
+		colorElIsSelectionAndNonNone(target, sc, fc, out_move);
+	}	
+}
+
+
+function mouseColorEventPaired(target, sc, fc, out_move) {
+	// if span, treat as mouse event on parent
+	if (target.tagName == "tspan") {
+		target = target.parentNode;
+	}
+	var targID = target.getAttribute("id");
+	var pairedTo = [];
+	var neighbor = null;
+	colorElIsSelectionAndNonNone(target, sc, fc, out_move);
+	if (pairings !== null && pairings.hasOwnProperty(targID)) {
+		pairTo = pairings[targID];
+		if (pairTo) {
+			// If the pairings value is length 3, then the third element is the curve ID
+			// the curve is highlighted by the edge ID, so we don't use the curve ID
+			// itself
+			if (pairTo.length > 0) {
+				neighbor = document.getElementById(pairTo[0]);
+				if (neighbor) {
+					colorElIsSelectionAndNonNone(neighbor, sc, fc, out_move);
+				}
+				if (pairTo.length > 1) {
+					neighbor = document.getElementById(pairTo[1]);
+					if (neighbor) {
+						colorElIsSelectionAndNonNone(neighbor, sc, fc, out_move);
+					}
+				}
+			}
 		}
 	}
-	
-	
 }
+
+
+function mouseOverPairedEdge(target) {
+	var sc = "red";
+	var fc = "red";
+	mouseColorEventPaired(target, sc, fc, true);
+}
+
+function mouseOutPairedEdge(target) {
+	var sc = target.getAttribute("nhscolor");
+	var fc = target.getAttribute("nhfcolor");
+	mouseColorEventPaired(target, sc, fc, true);
+}
+
 
 // calls mouseColorEvent with "red"
 function mouseOverNode(target) {

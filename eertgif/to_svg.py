@@ -10,6 +10,13 @@ from .util import DisplayMode
 log = logging.getLogger("eertgif.to_svg")
 
 
+DEF_COLOR = "grey"
+DEF_LOW_PRIORITY_COLOR = "grey"
+DEF_TREE_COMP_COLOR = "black"
+DEF_TRASHED_COLOR = "cyan"
+DEF_HIGHLIGHT_COLOR = "red"
+DEF_LEGEND_COLOR = "blue"  # also in extract.pt
+
 # from https://gist.github.com/ollieglass/f6ddd781eeae1d24e391265432297538
 kelly_colors = [
     "F2F3F4",
@@ -45,9 +52,9 @@ class SVGStyling:
         self.comp_idx2color = {}
 
     def color_for_el(self, el=None, is_trashed=False):
-        def_color = "grey"
-        def_trashed = "cyan"
-        def_highlight_color = "red"
+        def_color = DEF_COLOR
+        def_trashed = DEF_TRASHED_COLOR
+        def_highlight_color = DEF_HIGHLIGHT_COLOR
         highlight_color = def_highlight_color
         if is_trashed:
             return def_trashed, highlight_color
@@ -99,8 +106,11 @@ def to_svg(out, obj_container=None, styling=None):
         f"""<svg viewBox="0 0 {width} {height}" > 
 """
     )
+    curve_mode = obj_container.display_mode == DisplayMode.CURVES_AND_TEXT
+    phylo_mode = obj_container.display_mode == DisplayMode.PHYLO
+    component_mode = obj_container.display_mode == DisplayMode.COMPONENTS
     # log.debug(f"obj_container.nontext_objs = {obj_container.nontext_objs}")
-    if obj_container.display_mode == DisplayMode.CURVES_AND_TEXT:
+    if curve_mode:
         styling = styling if styling is not None else _def_style
         for n, o in enumerate(obj_container.nontext_objs):
             if isinstance(o, SafeCurve):
@@ -131,40 +141,82 @@ def to_svg(out, obj_container=None, styling=None):
         to_sort.sort(reverse=True)
 
         styling.comp_idx2color = {}
-        if (
-            obj_container.display_mode == DisplayMode.PHYLO
-            and obj_container.best_tree is not None
-        ):
+        if phylo_mode and obj_container.best_tree is not None:
             tree = obj_container.best_tree
             for n, tup in enumerate(to_sort):
                 comp_idx = tup[-2]
-                styling.comp_idx2color[comp_idx] = "grey"
-            styling.comp_idx2color[tree.component_idx] = "black"
+                styling.comp_idx2color[comp_idx] = DEF_LOW_PRIORITY_COLOR
+            styling.comp_idx2color[tree.component_idx] = DEF_TREE_COMP_COLOR
             if obj_container.best_legend and obj_container.best_legend.bar:
-                styling.comp_idx2color[
-                    obj_container.best_legend.bar.component_idx
-                ] = "blue"
+                leg_idx = obj_container.best_legend.bar.component_idx
+                styling.comp_idx2color[leg_idx] = DEF_LEGEND_COLOR
         else:
             for n, tup in enumerate(to_sort):
                 comp_idx = tup[-2]
                 col_idx = n if n < len(styling.color_list) else -1
                 color = styling.color_list[col_idx]
                 styling.comp_idx2color[comp_idx] = color
+        comp_path_events = {
+            "onclick": '"handleClickOnGraph(evt);"',
+            "onmouseover": '"mouseOverEdge(evt.target);"',
+            "onmouseout": '"mouseOutEdge(evt.target);"',
+        }
+        phylo_path_events = {
+            "onclick": '"handleClickOnGraph(evt);"',
+            "onmouseover": '"mouseOverPairedEdge(evt.target);"',
+            "onmouseout": '"mouseOutPairedEdge(evt.target);"',
+        }
+        comp_circ_events = {
+            "onmouseover": '"mouseOverNode(evt.target);"',
+            "onmouseout": '"mouseOutNode(evt.target);"',
+        }
+        phylo_circ_events = {
+            "onmouseover": '"mouseOverPairedEdge(evt.target);"',
+            "onmouseout": '"mouseOutPairedEdge(evt.target);"',
+        }
+        if phylo_mode:
+            path_events, circ_events = phylo_path_events, phylo_circ_events
+        else:
+            path_events, circ_events = comp_path_events, comp_circ_events
+
         for edge in edge_set:
-            curve_as_path(out, edge.curve, xfn, yfn, styling=styling, edge=edge)
+            curve_as_path(
+                out,
+                edge.curve,
+                xfn,
+                yfn,
+                styling=styling,
+                edge=edge,
+                events=path_events,
+            )
+
         for n, tup in enumerate(to_sort):
             nd_list = tup[-1]
             for nd in nd_list:
-                node_as_circle(out, nd, xfn, yfn, styling=styling)
+                node_as_circle(out, nd, xfn, yfn, styling=styling, events=circ_events)
 
         for curve in obj_container.trashed_nontext_objs:
             if isinstance(curve, SafeCurve):
-                curve_as_path(out, curve, xfn, yfn, styling=styling, is_trashed=True)
+                curve_as_path(
+                    out,
+                    curve,
+                    xfn,
+                    yfn,
+                    styling=styling,
+                    is_trashed=True,
+                    events=path_events,
+                )
             else:
                 log.debug(f"Skipping {curve} in SVG export...\n")
 
     # log.debug(f"obj_container.text_lines = {obj_container.nontext_objs}")
-    if obj_container.display_mode == DisplayMode.PHYLO:
+    events = {"ondragover": ";"}
+    phylo_text_events = {
+        "ondragover": ";",
+        "onmouseover": '"mouseOverPairedEdge(evt.target);"',
+        "onmouseout": '"mouseOutPairedEdge(evt.target);"',
+    }
+    if phylo_mode:
         tree = obj_container.best_tree
         tr_unused = set() if tree is None else set(tree.unused_text)
         legend = obj_container.best_legend
@@ -173,6 +225,7 @@ def to_svg(out, obj_container=None, styling=None):
         u_atts = ['fill="grey"']
         tr_atts = ['fill="black"']
         leg_atts = ['fill="blue"']
+        events = phylo_path_events
         for n, text in enumerate(obj_container.text_lines):
             if text in unused:
                 ini_atts = u_atts
@@ -180,19 +233,25 @@ def to_svg(out, obj_container=None, styling=None):
                 ini_atts = leg_atts
             else:
                 ini_atts = tr_atts
-            text_as_text_el(out, text, xfn, yfn, styling, ini_atts)
+            text_as_text_el(out, text, xfn, yfn, styling, ini_atts, events=events)
         for n, text in enumerate(obj_container.trashed_text):
-            text_as_text_el(out, text, xfn, yfn, styling, u_atts, is_trashed=True)
+            text_as_text_el(
+                out, text, xfn, yfn, styling, u_atts, is_trashed=True, events=events
+            )
     else:
         for n, text in enumerate(obj_container.text_lines):
-            text_as_text_el(out, text, xfn, yfn, styling)
-        if obj_container.display_mode != DisplayMode.CURVES_AND_TEXT:
+            text_as_text_el(out, text, xfn, yfn, styling, events=events)
+        if not curve_mode:
             for n, text in enumerate(obj_container.trashed_text):
-                text_as_text_el(out, text, xfn, yfn, styling, is_trashed=True)
+                text_as_text_el(
+                    out, text, xfn, yfn, styling, is_trashed=True, events=events
+                )
     out.write("</svg>")
 
 
-def text_as_text_el(out, text, xfn, yfn, styling, ini_atts=None, is_trashed=False):
+def text_as_text_el(
+    out, text, xfn, yfn, styling, ini_atts=None, is_trashed=False, events=None
+):
     midheight = (yfn(text.y1) + yfn(text.y0)) / 2
     atts = [f'x="{xfn(text.x0)}"', f'y="{midheight}"']
     if ini_atts:
@@ -204,9 +263,12 @@ def text_as_text_el(out, text, xfn, yfn, styling, ini_atts=None, is_trashed=Fals
     atts.append(f'textLength="{length}"')
     atts.append(f'textAdjust="spacingAndGlyphs"')
     atts.append(f'font-size="{int(text.height)}px"')
-    atts.append(f'ondragover=";"')
+    atts.append(f'nhscolor="none"')
     if is_trashed:
         atts.append('trashed="yes"')
+    if events:
+        atts.extend([f"{k}={v}" for k, v in events.items()])
+    # Deal with all-one-font text
     if text.is_all_one_font:
         _append_atts_for_font(text.font, atts)
         proc = html.escape(text.get_text().strip())
@@ -251,7 +313,7 @@ def _append_atts_for_font(font, att_list):
     return att_list
 
 
-def node_as_circle(out, nd, xfn, yfn, styling):
+def node_as_circle(out, nd, xfn, yfn, styling, events=None):
     styling = styling if styling is not None else _def_style
     color, highlight_color = styling.color_for_el(nd)
     edge_refs = ",".join([str(i.eertgif_id) for i in nd.edges])
@@ -261,8 +323,6 @@ def node_as_circle(out, nd, xfn, yfn, styling):
         f'r="{styling.circle_size}" ',
         # f'stroke="black"'
         f'stroke="none" fill="{color}" nhscolor="none" nhfcolor="{color}"',
-        'onmouseover="mouseOverNode(evt.target);"',
-        'onmouseout="mouseOutNode(evt.target);"',
         f'component="{nd.component_idx}"',
     ]
     if edge_refs:
@@ -271,11 +331,15 @@ def node_as_circle(out, nd, xfn, yfn, styling):
     eertgif_id = getattr(nd, "eertgif_id", None)
     if eertgif_id is not None:
         atts.append(f'id="{eertgif_id}"')
+    if events:
+        atts.extend([f"{k}={v}" for k, v in events.items()])
     s = f' <circle {" ".join(atts)} />\n'
     out.write(s)
 
 
-def curve_as_path(out, curve, xfn, yfn, styling=None, edge=None, is_trashed=False):
+def curve_as_path(
+    out, curve, xfn, yfn, styling=None, edge=None, is_trashed=False, events=None
+):
     styling = styling if styling is not None else _def_style
     plot_as_diag = curve.eff_diagonal is not None
     full_coord_pairs = [f"{xfn(i[0])} {yfn(i[1])}" for i in curve.pts]
@@ -311,13 +375,12 @@ def curve_as_path(out, curve, xfn, yfn, styling=None, edge=None, is_trashed=Fals
     if curve.linewidth:
         atts.append(f'stroke-width="{curve.linewidth}"')
     atts.append(f'stroke="{color}"')  # @TODO!
+    if events:
+        atts.extend([f"{k}={v}" for k, v in events.items()])
     # else:
     #    atts.append(f'stroke="none"')
     # log.debug(f"curve.fill = {curve.fill} curve.non_stroking_color = {curve.non_stroking_color}")
     filling = curve.non_stroking_color and curve.non_stroking_color != (0, 0, 0)
-    atts.append('onclick="handleClickOnGraph(evt);"')
-    atts.append('onmouseover="mouseOverEdge(evt.target);"')
-    atts.append('onmouseout="mouseOutEdge(evt.target);"')
     atts.extend([f'stroke="{color}"', f'nhscolor="{color}"'])
     if curve.fill and not plot_as_diag:
         atts.extend(['fill="{color}"', 'nhfcolor="{color}"'])

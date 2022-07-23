@@ -7,6 +7,7 @@
 <body>
     <script>
 var extract_config = null;
+var pairings = null;
     </script>
 <h2>Editing <span tal:condition="single_item">region ${pages[0][0]} of </span>study "${tag}"</h2>
 <span tal:condition="prev_region_id"><a class="button" href="/view/${tag}?page=${prev_region_id}">Previous region</a></span> <span tal:condition="not prev_region_id">(no previous region)</span> <span tal:condition="single_item and (status == 'unknown')"><a class="button" href="/set_status/${tag}?page=${pages[0][0]}&status=no%20trees">Flag as lacking tree</a> <a class="button" href="/extract/${tag}?page=${pages[0][0]}">Begin extracting tree</a></span><span tal:condition="single_item and (status == 'no trees')"><a class="button" href="/set_status/${tag}?page=${pages[0][0]}&status=unknown">Revert region status to "unknown"</a></span> <span tal:condition="next_region_id"><a class="button" href="/view/${tag}?page=${next_region_id}">Next region</a></span><span tal:condition="not next_region_id">(no next region)</span>

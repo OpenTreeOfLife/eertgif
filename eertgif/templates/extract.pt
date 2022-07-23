@@ -15,6 +15,8 @@
     <script>
 var extract_config = null;
 extract_config = ${cfg_json};
+var pairings = null;
+pairings = ${pairing_obj};
     </script>
     <div id="tree_button_div">
         <strong>Viz:</strong>&nbsp;

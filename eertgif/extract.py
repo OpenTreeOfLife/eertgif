@@ -428,7 +428,10 @@ class ExtractionManager(object):
             node_merge_tol if node_merge_tol is not None else self.node_merge_tol
         )
         new_graph = (
-            (self.graph is None) or (self.graph.tol != node_merge_tol) or filter_changed
+            True
+            or (self.graph is None)
+            or (self.graph.tol != node_merge_tol)
+            or filter_changed
         )
         if new_graph:
             self._new_graph()

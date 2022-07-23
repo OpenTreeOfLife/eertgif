@@ -240,6 +240,8 @@ class EertgifView:
 
     def _common_extract_return(self, em, tag, page_id, status):
         svg = em.as_svg_str()
+        log.debug(f"svg={svg}")
+        pairing_obj = {}
         if isinstance(em, UnprocessedRegion) or em.best_tree is None:
             phylo_stats = {}
         else:
@@ -257,6 +259,22 @@ class EertgifView:
                 phylo_stats["legend_str"] = " ".join(tl)
             else:
                 phylo_stats["legend_str"] = "not found"
+            for leaf_nd in em.best_tree.matched_phy_leaves:
+                text_id = str(leaf_nd.label_obj.eertgif_id)
+                node_id = str(leaf_nd.vnode.eertgif_id)
+                if leaf_nd.orig_vedge_to_par is not None:
+                    edge = leaf_nd.orig_vedge_to_par
+                    edge_id = str(edge.eertgif_id)
+                    curve_id = str(edge.curve.eertgif_id)
+                    pairing_obj[text_id] = [node_id, edge_id, curve_id]
+                    pairing_obj[node_id] = [text_id, edge_id]
+                    pairing_obj[edge_id] = [text_id, node_id]
+                    log.debug(
+                        f"pairing text={text_id}, node={node_id}, edge={edge_id}, curve={curve_id}"
+                    )
+                else:
+                    pairing_obj[text_id] = [node_id]
+                    pairing_obj[node_id] = [text_id]
 
         d = {
             "tag": tag,
@@ -266,6 +284,7 @@ class EertgifView:
             "cfg_json": json.dumps(em.cfg.dict_for_json()),
             "cfg": em.cfg,
             "phylo_stats": phylo_stats,
+            "pairing_obj": pairing_obj,
         }
         return d
 
