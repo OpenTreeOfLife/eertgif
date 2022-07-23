@@ -85,15 +85,17 @@ def to_html(out, obj_container=None, styling=None):
     )
 
 
-def get_svg_str(obj_container=None, styling=None):
+def get_svg_str(obj_container=None, styling=None, pairings=None):
     x = StringIO()
-    to_svg(x, obj_container=obj_container)
+    to_svg(x, obj_container=obj_container, pairings=pairings)
     return x.getvalue()
 
 
-def to_svg(out, obj_container=None, styling=None):
+def to_svg(out, obj_container=None, styling=None, pairings=None):
     from .safe_containers import SafeCurve
 
+    if pairings is None:
+        pairings = {}
     assert obj_container is not None
     cbb = obj_container.container_bbox
     height = cbb[3] - cbb[1]
@@ -193,7 +195,20 @@ def to_svg(out, obj_container=None, styling=None):
         for n, tup in enumerate(to_sort):
             nd_list = tup[-1]
             for nd in nd_list:
-                node_as_circle(out, nd, xfn, yfn, styling=styling, events=circ_events)
+                hollow = (
+                    phylo_mode
+                    and (len(nd.edges) == 1)
+                    and (str(nd.eertgif_id) not in pairings)
+                )
+                node_as_circle(
+                    out,
+                    nd,
+                    xfn,
+                    yfn,
+                    styling=styling,
+                    events=circ_events,
+                    hollow=hollow,
+                )
 
         for curve in obj_container.trashed_nontext_objs:
             if isinstance(curve, SafeCurve):
@@ -313,16 +328,20 @@ def _append_atts_for_font(font, att_list):
     return att_list
 
 
-def node_as_circle(out, nd, xfn, yfn, styling, events=None):
+def node_as_circle(out, nd, xfn, yfn, styling, events=None, hollow=False):
     styling = styling if styling is not None else _def_style
     color, highlight_color = styling.color_for_el(nd)
     edge_refs = ",".join([str(i.eertgif_id) for i in nd.edges])
     # log.debug(f"edge_refs = {edge_refs}")
+    if hollow:
+        color_str = f'stroke="{color}" fill="white" nhscolor="{color}" nhfcolor="white"'
+    else:
+        color_str = f'stroke="none" fill="{color}" nhscolor="none" nhfcolor="{color}"'
     atts = [
         f'cx="{xfn(nd.x)}" cy="{yfn(nd.y)}" ',
         f'r="{styling.circle_size}" ',
         # f'stroke="black"'
-        f'stroke="none" fill="{color}" nhscolor="none" nhfcolor="{color}"',
+        color_str,
         f'component="{nd.component_idx}"',
     ]
     if edge_refs:
