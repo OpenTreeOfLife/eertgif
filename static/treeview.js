@@ -77,11 +77,29 @@ function colorElIfNHColorNonNone(el, stroke_color, fill_color) {
 	displayIfNotHiddenOrTrashed(el);
 }
 
+function highlightElement(element, color) {
+	colorElIfNHColorNonNone(element, color, color);
+}
+
+function unhighlightElement(element) {
+	var sc = element.getAttribute("nhscolor");
+	var fc = element.getAttribute("nhfcolor");
+	colorElIfNHColorNonNone(element, sc, fc);
+}
+
+function condHighlightElement(out_move, element, color) {
+	if (out_move) {
+		unhighlightElement(element);
+	} else {
+		highlightElement(element, color);
+	}
+}
+
 // calls colorElIfNHColorNonNone for every element with the same component index
 // (`comp_id`). Calls setDisplayForGraph with `nonmatching_display` to 
 // to allow for setting the display for none for other elements.
 //	TEMP. that nonmatching_display stuff is sloppy and could flicker
-function setColorsForSameComp(comp_id, stroke_color, fill_color, nonmatching_display) {
+function setColorsForSameComp(comp_id, color, nonmatching_display, out_move) {
 	var el_of_same_comp = el_by_comp_id[comp_id]
 	if (typeof el_of_same_comp === 'undefined') {
 		return;
@@ -91,13 +109,13 @@ function setColorsForSameComp(comp_id, stroke_color, fill_color, nonmatching_dis
 	var el;
 	for (; i < el_of_same_comp.length; i++) {
 		el = el_of_same_comp[i];
-		colorElIfNHColorNonNone(el, stroke_color, fill_color);
+		condHighlightElement(out_move, el, color)
 	}
 }
 
 // `id_refs` should be a comma separated list of element ids
 //	colorElIfNHColorNonNone will be called for each.
-function colorComSepList(id_refs, stroke_color, fill_color) {
+function colorComSepList(id_refs, color, out_move) {
 	var er;
 	var el;
 	if (id_refs && id_refs !== "") {
@@ -106,7 +124,7 @@ function colorComSepList(id_refs, stroke_color, fill_color) {
 		for (; i < edge_list.length; i++) {
 			er = "#" + edge_list[i].trim();
 			el = $( er ).get(0);
-			colorElIfNHColorNonNone(el, stroke_color, fill_color);
+			condHighlightElement(out_move, el, color);
 		}
 	}
 }
@@ -127,15 +145,19 @@ function setDisplayForGraph(nonmatching_display) {
 
 // setDisplayForGraph, then displays all elements referred to in "nodes" or "edges"
 //	attributes of "el"
-function setColorsForNeighbors(el, stroke_color, fill_color, nonmatching_display) {
+function setColorsForNeighbors(el, color, nonmatching_display, out_move) {
 	setDisplayForGraph(nonmatching_display);
-	colorComSepList(el.getAttribute("edges"), stroke_color, fill_color);
-	colorComSepList(el.getAttribute("nodes"), stroke_color, fill_color);
+	colorComSepList(el.getAttribute("edges"), color, out_move);
+	colorComSepList(el.getAttribute("nodes"), color, out_move);
 }
 
-function colorElIsSelectionAndNonNone(target, sc, fc, out_move) {
-	if ((! out_move) || (! target.hasAttribute('data-selected'))) {
-		colorElIfNHColorNonNone(target, sc, fc);
+function colorElIsSelectionAndNonNone(target, color, out_move) {
+	if (out_move) {
+		if (! target.hasAttribute('data-selected')) {
+			unhighlightElement(target);
+		}
+	} else {
+		highlightElement(target, color);
 	}
 }
 
@@ -144,7 +166,7 @@ function colorElIsSelectionAndNonNone(target, sc, fc, out_move) {
 // `out_move` should be true if this is a move out of the target.
 // note that highlight_mode reverts to "element" only if there is an active
 //	selection event.
-function mouseColorEvent(target, sc, fc, out_move) {
+function mouseColorEvent(target, color, out_move) {
 	var nonmatching_display;
 	var highlight_mode = $("#highlight_mode").val();
 	if (selected_id_set.size == 0) {
@@ -158,23 +180,23 @@ function mouseColorEvent(target, sc, fc, out_move) {
 			} else {
 				nonmatching_display = "none"
 			}
-			setColorsForSameComp(comp_id, sc, fc, nonmatching_display);
+			setColorsForSameComp(comp_id, color, nonmatching_display, out_move);
 		} else if (highlight_mode == "neighbors" || highlight_mode == "neighbors-only") {
 			if (out_move || highlight_mode == "neighbors" ) {
 				nonmatching_display = "yes";
 			} else {
 				nonmatching_display = "none"
 			}
-			setColorsForNeighbors(target, sc, fc, nonmatching_display);
+			setColorsForNeighbors(target, color, nonmatching_display, out_move);
 		}
-		colorElIfNHColorNonNone(target, sc, fc);
+		colorElIsSelectionAndNonNone(target, color, out_move);
 	} else {
-		colorElIsSelectionAndNonNone(target, sc, fc, out_move);
+		colorElIsSelectionAndNonNone(target, color, out_move);
 	}	
 }
 
 
-function mouseColorEventPaired(target, sc, fc, out_move) {
+function mouseColorEventPaired(target, color, out_move) {
 	// if span, treat as mouse event on parent
 	if (target.tagName == "tspan") {
 		target = target.parentNode;
@@ -182,7 +204,7 @@ function mouseColorEventPaired(target, sc, fc, out_move) {
 	var targID = target.getAttribute("id");
 	var pairedTo = [];
 	var neighbor = null;
-	colorElIsSelectionAndNonNone(target, sc, fc, out_move);
+	colorElIsSelectionAndNonNone(target, color, out_move);
 	if (pairings !== null && pairings.hasOwnProperty(targID)) {
 		pairTo = pairings[targID];
 		if (pairTo) {
@@ -192,12 +214,12 @@ function mouseColorEventPaired(target, sc, fc, out_move) {
 			if (pairTo.length > 0) {
 				neighbor = document.getElementById(pairTo[0]);
 				if (neighbor) {
-					colorElIsSelectionAndNonNone(neighbor, sc, fc, out_move);
+					colorElIsSelectionAndNonNone(neighbor, color, out_move);
 				}
 				if (pairTo.length > 1) {
 					neighbor = document.getElementById(pairTo[1]);
 					if (neighbor) {
-						colorElIsSelectionAndNonNone(neighbor, sc, fc, out_move);
+						colorElIsSelectionAndNonNone(neighbor, color, out_move);
 					}
 				}
 			}
@@ -207,32 +229,24 @@ function mouseColorEventPaired(target, sc, fc, out_move) {
 
 
 function mouseOverPairedEdge(target) {
-	var sc = "red";
-	var fc = "red";
-	mouseColorEventPaired(target, sc, fc, true);
+	mouseColorEventPaired(target, "red", false);
 }
 
 function mouseOutPairedEdge(target) {
-	var sc = target.getAttribute("nhscolor");
-	var fc = target.getAttribute("nhfcolor");
-	mouseColorEventPaired(target, sc, fc, true);
+	mouseColorEventPaired(target, null, true);
 }
 
 
 // calls mouseColorEvent with "red"
 function mouseOverNode(target) {
-	var sc = "red";
-	var fc = "red";
-	mouseColorEvent(target, sc, fc, false);
+	mouseColorEvent(target, "red", false);
 }
 
 var mouseOverEdge = mouseOverNode;
 
 // calls mouseColorEvent with non-highlight colors for the target"
 function mouseOutNode(target) {
-	var sc = target.getAttribute("nhscolor");
-	var fc = target.getAttribute("nhfcolor");
-	mouseColorEvent(target, sc, fc, true);
+	mouseColorEvent(target, null, true);
 }
 
 var mouseOutEdge = mouseOutNode;
@@ -502,16 +516,6 @@ function strictIntersectionSelector(context) {
 	})
 }
 
-function highlightElement(element) {
-	colorElIfNHColorNonNone(element, "red", "red");
-}
-
-function unhighlightElement(element) {
-	var sc = element.getAttribute("nhscolor");
-	var fc = element.getAttribute("nhfcolor");
-	colorElIfNHColorNonNone(element, sc, fc);
-}
-
 function noOp() {
 }
 
@@ -585,7 +589,7 @@ window.svgDragSelectOptions = {
 	selectionChange.newlySelectedElements.forEach(function (element) {
 		element.setAttribute('data-selected', '')
 		selected_id_set.add(element.getAttribute('id'));
-		highlightElement(element);
+		highlightElement(element, "red");
 	})
 	document.getElementById('selected-items').value = selectionChange.selectedElements
 		.map(function (element) { return element.getAttribute('id') })
