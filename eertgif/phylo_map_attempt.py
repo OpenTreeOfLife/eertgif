@@ -20,6 +20,8 @@ from .util import (
 
 log = logging.getLogger(__name__)
 
+MAX_MATCHABLE_SCORE = 100.0  # IDK about this...
+
 
 class LocLabWrap(object):
     def __init__(self, loc, label):
@@ -126,34 +128,34 @@ class PhyloMapAttempt(object):
         self.unmatched_ext_nodes = unmatched_ext
         self.unused_perpindicular_text = perpindic_t
 
-    def _try_match_text(self, inline_t, externals):
+    def _try_match_text(self, inline_t: List[SafeTextLine], externals: List[Node]):
         if not (inline_t and externals):
             return [], [], [], [], set(externals), {}
         # first level matching:
         #   if an external node and a text object are
         #   closest to each other, then we call them a match
         blob = self._match_by_mutual_closest(inline_t, externals)
-        match_pairs, matched_labels, matched_leaves, matched_dists, lev1_orphans, unmatched_lvs, by_lab, by_ext = (
+        match_pairs, matched_labels, matched_leaves, matched_dists, unmatched_labels, unmatched_lvs, by_lab, by_ext = (
             blob
         )
 
-        lev2_orphans = self._match_more_using_offsets(
+        self._match_more_using_offsets(
             match_pairs,
             matched_labels,
             matched_leaves,
             matched_dists,
-            unmatched_labels=lev1_orphans,
+            unmatched_labels=unmatched_labels,
             unmatched_lvs=unmatched_lvs,
             by_lab=by_lab,
             by_ext=by_ext,
         )
 
-        orphan_labels = self._match_all_acceptable_by_score(
+        self._match_all_acceptable_by_score(
             match_pairs,
             matched_labels,
             matched_leaves,
             matched_dists,
-            unmatched_labels=lev2_orphans,
+            unmatched_labels=unmatched_labels,
             unmatched_lvs=unmatched_lvs,
             by_lab=by_lab,
             by_ext=by_ext,
@@ -165,14 +167,16 @@ class PhyloMapAttempt(object):
         #         unmatched_ext.add(nd)
         return (
             matched_labels,
-            orphan_labels,
+            unmatched_labels,
             matched_dists,
             matched_leaves,
             unmatched_lvs,
             by_lab,
         )
 
-    def _match_by_mutual_closest(self, unmatched_labels, externals):
+    def _match_by_mutual_closest(
+        self, unmatched_labels: List[SafeTextLine], externals: List[Node]
+    ):
         inline_t = unmatched_labels
         calc_x, calc_y = self.calc_x, self.calc_y
         by_lab = {}
@@ -200,7 +204,7 @@ class PhyloMapAttempt(object):
                 matched_labels.append(label_t)
                 lt = (calc_x(label_t), calc_y(label_t))
                 log.debug(
-                    f"first level match {label_t.get_text().strip()} with dist={dist} {(ext.x, ext.y)} -> {lt}"
+                    f"primary match {label_t.get_text().strip()} with dist={dist} {ext} <=> {lt}"
                 )
                 matched_dists.append(dist)
                 matched_leaves.add(ext)
@@ -221,25 +225,70 @@ class PhyloMapAttempt(object):
 
     def _match_all_acceptable_by_score(
         self,
-        match_pairs,
-        matched_labels,
-        matched_leaves,
-        matched_dists,
-        unmatched_labels,
-        unmatched_lvs,
+        match_pairs: List[Tuple[Node, SafeTextLine]],
+        matched_labels: List[SafeTextLine],
+        matched_leaves: Set[Node],
+        matched_dists: List[float],
+        unmatched_labels: List[SafeTextLine],
+        unmatched_lvs: Set[Node],
         by_lab,
         by_ext,
     ):
+        if (not unmatched_lvs) or (not unmatched_labels):
+            return unmatched_labels
+        matching_stats = MatchingStats(match_pairs, self)
+        sc_leaf_label = []
+
+        for leaf in unmatched_lvs:
+            sc_leaf_label.append(
+                self._find_best_match(leaf, unmatched_labels, matching_stats)
+            )
+
+        while unmatched_labels and unmatched_lvs:
+            sc_leaf_label.sort()
+            best = sc_leaf_label.pop(0)
+            score, leaf, label = best
+            if score > MAX_MATCHABLE_SCORE:
+                break
+            log.debug(f"Score matching: {score}, {leaf} <=> {label.get_text().strip()}")
+
+            match_pairs.append((leaf, label))
+            matched_labels.append(label)
+            matched_leaves.add(leaf)
+            unmatched_labels.remove(label)
+            unmatched_lvs.remove(leaf)
+            by_lab[label] = (leaf, None)
+            by_ext[leaf] = (label, None)
+
+            # build list of indices in highest to lowest, to pop in the correct order below
+            idx_to_pop = []
+            for n, sc_lv_lab in enumerate(sc_leaf_label):
+                if label is sc_lv_lab[-1]:
+                    idx_to_pop.insert(0, n)
+            for idx in idx_to_pop:
+                sc_lv_lab = sc_leaf_label.pop(idx)
+                leaf = sc_lv_lab[1]
+                sc_leaf_label.append(
+                    self._find_best_match(leaf, unmatched_labels, matching_stats)
+                )
         return unmatched_labels
+
+    def _find_best_match(self, leaf, unmatched_labels, matching_stats):
+        min_score, min_score_label = float("inf"), None
+        for label in unmatched_labels:
+            score = matching_stats.score(leaf, label)
+            if score < min_score:
+                min_score, min_score_label = score, label
+        return min_score, leaf, label
 
     def _match_more_using_offsets(
         self,
-        match_pairs,
-        matched_labels,
-        matched_leaves,
-        matched_dists,
-        unmatched_labels,
-        unmatched_lvs,
+        match_pairs: List[Tuple[Node, SafeTextLine]],
+        matched_labels: List[SafeTextLine],
+        matched_leaves: Set[Node],
+        matched_dists: List[float],
+        unmatched_labels: List[SafeTextLine],
+        unmatched_lvs: Set[Node],
         by_lab,
         by_ext,
     ):
@@ -276,9 +325,8 @@ class PhyloMapAttempt(object):
             if ext not in unmatched_lvs:
                 orphan_labels.add(label_t)
             elif by_ext.get(ext, [None, None])[0] is label_t:
-                log.debug(
-                    f"second level match {label_t.get_text().strip()} with dist={dist}"
-                )
+                log.debug(f"Offset matching: {ext} <=> {label_t.get_text().strip()}")
+
                 matched_labels.append(label_t)
                 matched_dists.append(dist)
                 matched_leaves.add(ext)
@@ -315,7 +363,7 @@ class PhyloMapAttempt(object):
         unmatched_lvs: Set[Node],
         tip_labels: List[SafeTextLine],
         label2leaf: Dict[SafeTextLine, Tuple[Node, float]],
-        unmatched_labels: Set[SafeTextLine],
+        unmatched_labels: List[SafeTextLine],
     ) -> Optional[PhyloNode]:
         try:
             node2phyn = self._build_adj(
@@ -410,3 +458,43 @@ class PhyloMapAttempt(object):
                 adj_phy_nd = node2phyn[adj_v_nd]
                 adj_phy_nd.add_adjacent(phynd, edge)
         return node2phyn
+
+
+class MatchingStats(object):
+    def __init__(self, match_pairs: List[Tuple[Node, SafeTextLine]], pma):
+        self.pma = pma
+        x_off, y_off = [], []
+        calc_x, calc_y = pma.calc_x, pma.calc_y
+        for leaf, label in match_pairs:
+            x_off.append(calc_x(label) - leaf.x)
+            y_off.append(calc_y(label) - leaf.y)
+        m, v = mean_var(x_off)
+        if v is None:
+            self.x_off_mean = m
+            if m is None:
+                self.x_off_sd = None
+            else:
+                self.x_off_sd = max(
+                    abs(m), 10
+                )  # TODO Arbitrarily setting sd to 10 or mean.
+        else:
+            self.x_off_mean, self.x_off_sd = m, sqrt(v)
+        m, v = mean_var(y_off)
+        if v is None:
+            self.y_off_mean = m
+            if m is None:
+                self.y_off_sd = None
+            else:
+                self.y_off_sd = max(
+                    abs(m), 10
+                )  # TODO Arbitrarily setting sd to 10 or mean.
+        else:
+            self.y_off_mean, self.y_off_sd = m, sqrt(v)
+
+    def score(self, leaf, label):
+        calc_x, calc_y = self.pma.calc_x, self.pma.calc_y
+        x_off = calc_x(label) - leaf.x
+        norm_x_off = ((x_off - self.x_off_mean) / self.x_off_sd) ** 2
+        y_off = calc_y(label) - leaf.y
+        norm_y_off = ((y_off - self.y_off_mean) / self.y_off_sd) ** 2
+        return sum([norm_x_off, norm_y_off])

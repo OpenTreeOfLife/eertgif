@@ -225,7 +225,7 @@ def to_svg(out, obj_container=None, styling=None, pairings=None):
                 log.debug(f"Skipping {curve} in SVG export...\n")
 
     # log.debug(f"obj_container.text_lines = {obj_container.nontext_objs}")
-    events = {"ondragover": ";"}
+    events = {"ondragover": ";", "nhfcolor": "black"}
     phylo_text_events = {
         "ondragover": ";",
         "onmouseover": '"mouseOverPairedEdge(evt.target);"',
@@ -237,9 +237,9 @@ def to_svg(out, obj_container=None, styling=None, pairings=None):
         legend = obj_container.best_legend
         leg_unused = set() if legend is None else set(legend.unused_text)
         unused = tr_unused.intersection(leg_unused)
-        u_atts = ['fill="grey"']
-        tr_atts = ['fill="black"']
-        leg_atts = ['fill="blue"']
+        u_atts = ['fill="grey"', 'nhfcolor="grey"']
+        tr_atts = ['fill="black"', 'nhfcolor="black"']
+        leg_atts = ['fill="blue"', 'nhfcolor="blue"']
         events = phylo_path_events
         for n, text in enumerate(obj_container.text_lines):
             if text in unused:
