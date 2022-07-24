@@ -151,7 +151,7 @@ class EertgifView:
             with open(tmp_path, "wb") as empout:
                 obj.pickle(empout)
         except:
-            os.path.remove(tmp_path)
+            os.remove(tmp_path)
             raise
         with _upload_lock:
             os.rename(tmp_path, orig_pickle_path)
