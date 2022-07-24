@@ -300,7 +300,6 @@ class PhyloMapAttempt(object):
         """Second-level matching using the mean offset of primary matches
         to find more cases of an external node and a text element being each 
         other's closest match."""
-        lev1_orphans = unmatched_labels
         calc_x, calc_y = self.calc_x, self.calc_y
 
         # Level 2 matching.
@@ -313,7 +312,7 @@ class PhyloMapAttempt(object):
         mean_x_off, mean_y_off = mean_vector(offset_vec)
         log.debug(f"mean_offset = {(mean_x_off, mean_y_off)}")
 
-        for label_t in lev1_orphans:
+        for label_t in unmatched_labels:
             loc = (calc_x(label_t) - mean_x_off, calc_y(label_t) - mean_y_off)
             dist, ext = find_closest(loc, unmatched_lvs)
             old = by_lab[label_t]
@@ -322,13 +321,13 @@ class PhyloMapAttempt(object):
                 continue
             by_lab[label_t] = (ext, dist)
             prev = by_ext.get(ext)
-            if prev is None or (prev[0] not in lev1_orphans) or (dist < prev[-1]):
+            if prev is None or (prev[0] not in unmatched_labels) or (dist < prev[-1]):
                 by_ext[ext] = (label_t, dist)
-        orphan_labels = set()
-        for label_t in lev1_orphans:
+        to_remove = []
+        for label_t in unmatched_labels:
             ext, dist = by_lab[label_t]
             if ext not in unmatched_lvs:
-                orphan_labels.add(label_t)
+                pass
             elif by_ext.get(ext, [None, None])[0] is label_t:
                 log.debug(f"Offset matching: {ext} <=> {label_t.get_text().strip()}")
 
@@ -337,9 +336,9 @@ class PhyloMapAttempt(object):
                 matched_leaves.add(ext)
                 match_pairs.append((ext, label_t))
                 unmatched_lvs.remove(ext)
-            else:
-                orphan_labels.add(label_t)
-        return orphan_labels
+                to_remove.append(label_t)
+        for label_t in to_remove:
+            unmatched_labels.remove(label_t)
 
     @property
     def unused_text(self):
