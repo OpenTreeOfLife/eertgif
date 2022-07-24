@@ -177,11 +177,10 @@ class PhyloMapAttempt(object):
     def _match_by_mutual_closest(
         self, unmatched_labels: List[SafeTextLine], externals: List[Node]
     ):
-        inline_t = unmatched_labels
         calc_x, calc_y = self.calc_x, self.calc_y
         by_lab = {}
         label_wrappers = []
-        for label_t in inline_t:
+        for label_t in unmatched_labels:
             loc = (calc_x(label_t), calc_y(label_t))
             dist, ext = find_closest(loc, externals)
             assert ext is not None
@@ -198,7 +197,8 @@ class PhyloMapAttempt(object):
         matched_dists = []
         match_pairs = []
         unmatched_lvs = set(externals)
-        for label_t in inline_t:
+        to_remove = []
+        for label_t in unmatched_labels:
             ext, dist = by_lab[label_t]
             if by_ext.get(ext, [None, None])[0] is label_t:
                 matched_labels.append(label_t)
@@ -210,8 +210,11 @@ class PhyloMapAttempt(object):
                 matched_leaves.add(ext)
                 match_pairs.append((ext, label_t))
                 unmatched_lvs.remove(ext)
+                to_remove.append(label_t)
             else:
                 lev1_orphans.append(label_t)
+        for label_t in to_remove:
+            unmatched_labels.remove(label_t)
         return (
             match_pairs,
             matched_labels,
