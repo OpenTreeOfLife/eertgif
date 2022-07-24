@@ -280,9 +280,11 @@ class PhyloMapAttempt(object):
         min_score, min_score_label = float("inf"), None
         for label in unmatched_labels:
             score = matching_stats.score(leaf, label)
+            log.debug(f"Score of {score} for {leaf} <==> {label.get_text().strip()}")
             if score < min_score:
+                log.debug("New best")
                 min_score, min_score_label = score, label
-        return min_score, leaf, label
+        return min_score, leaf, min_score_label
 
     def _match_more_using_offsets(
         self,
