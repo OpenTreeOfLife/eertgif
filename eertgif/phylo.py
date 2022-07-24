@@ -251,7 +251,6 @@ class PhyloTree(object):
             pma.add_penalty(Penalty.UNMATCHED_LABELS, float("inf"))
         pma.unmatched_ext_nodes = unmatched_ext
         pma.unused_perpindicular_text = perpindic_t
-        pma.unused_inline_text = orphan_labels
         return pma
 
     def _try_match_text(self, inline_t, externals, calc_x, calc_y):
@@ -260,6 +259,39 @@ class PhyloTree(object):
         # first level matching:
         #   if an external node and a text object are
         #   closest to each other, then we call them a match
+        blob = self._match_by_mutual_closest(inline_t, externals, calc_x, calc_y)
+        match_pairs, matched_labels, matched_leaves, matched_dists, lev1_orphans, unmatched_lvs, by_lab, by_ext = (
+            blob
+        )
+
+        orphan_labels = self._match_more_using_offsets(
+            match_pairs,
+            matched_labels,
+            matched_leaves,
+            matched_dists,
+            unmatched_labels=lev1_orphans,
+            unmatched_lvs=unmatched_lvs,
+            by_lab=by_lab,
+            by_ext=by_ext,
+            calc_x=calc_x,
+            calc_y=calc_y,
+        )
+
+        # unmatched_ext = set()
+        # for nd in externals:
+        #     if nd not in matched_leaves:
+        #         unmatched_ext.add(nd)
+        return (
+            matched_labels,
+            orphan_labels,
+            matched_dists,
+            matched_leaves,
+            unmatched_lvs,
+            by_lab,
+        )
+
+    def _match_by_mutual_closest(self, unmatched_labels, externals, calc_x, calc_y):
+        inline_t = unmatched_labels
         by_lab = {}
         label_wrappers = []
         for label_t in inline_t:
@@ -293,7 +325,34 @@ class PhyloTree(object):
                 unmatched_lvs.remove(ext)
             else:
                 lev1_orphans.append(label_t)
+        return (
+            match_pairs,
+            matched_labels,
+            matched_leaves,
+            matched_dists,
+            lev1_orphans,
+            unmatched_lvs,
+            by_lab,
+            by_ext,
+        )
 
+    def _match_more_using_offsets(
+        self,
+        match_pairs,
+        matched_labels,
+        matched_leaves,
+        matched_dists,
+        unmatched_labels,
+        unmatched_lvs,
+        by_lab,
+        by_ext,
+        calc_x,
+        calc_y,
+    ):
+        """Second-level matching using the mean offset of primary matches
+        to find more cases of an external node and a text element being each 
+        other's closest match."""
+        lev1_orphans = unmatched_labels
         # Level 2 matching.
         # Use the average offset between matched text and tips
         # to provide a better expected location for a tip's text
@@ -331,19 +390,7 @@ class PhyloTree(object):
                 unmatched_lvs.remove(ext)
             else:
                 orphan_labels.add(label_t)
-
-        # unmatched_ext = set()
-        # for nd in externals:
-        #     if nd not in matched_leaves:
-        #         unmatched_ext.add(nd)
-        return (
-            matched_labels,
-            orphan_labels,
-            matched_dists,
-            matched_leaves,
-            unmatched_lvs,
-            by_lab,
-        )
+        return orphan_labels
 
 
 def min_coord_north(n):
@@ -650,6 +697,7 @@ class PhyloMapAttempt(object):
                 self.add_penalty(Penalty.UNMATCHED_LABELS, 1)
         root.collapse_short_internals(MIN_BR_TOL)
         self.matched_phy_leaves = set([node2phyn[i] for i in matched_lvs])
+        self.unused_inline_text = set(unmatched_labels)
         return root
 
     def _root_by_position(
