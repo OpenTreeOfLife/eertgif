@@ -488,10 +488,10 @@ class UnprocessedRegion(object):
     def has_content(self):
         return bool(self.text_lines) or bool(self.nontext_objs)
 
-    def as_svg_str(self):
+    def as_svg_str(self, pairings=None):
         from .to_svg import get_svg_str
 
-        return get_svg_str(self)
+        return get_svg_str(self, pairings=pairings)
 
     @property
     def tag(self):

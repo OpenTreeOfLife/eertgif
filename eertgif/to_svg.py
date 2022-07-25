@@ -393,7 +393,7 @@ def curve_as_path(
     # if curve.stroke or plot_as_diag:
     if curve.linewidth:
         atts.append(f'stroke-width="{curve.linewidth}"')
-    atts.append(f'stroke="{color}"')  # @TODO!
+    # atts.append(f'stroke="{color}"')  # @TODO!
     if events:
         atts.extend([f"{k}={v}" for k, v in events.items()])
     # else:
