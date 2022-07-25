@@ -516,7 +516,7 @@ class EertgifView:
             to_clean.append(file_path)
 
             img_dir = os.path.join(dest_dir, "img")
-            iw = ImageWriter(os.path.join(img_dir))
+            iw = ImageWriter(img_dir)
             to_clean.append(img_dir)
 
             try:
@@ -536,7 +536,9 @@ class EertgifView:
                 nfs = set()
                 for ur in unproc_regions:
                     pf = f"{ur.tag}.pickle"
-                    assert pf not in nfs
+                    if pf in nfs:
+                        log.error(f"{pf} already pickled")
+                        assert False
                     nfs.add(pf)
                     pfp = os.path.join(dest_dir, pf)
                     to_clean.append(pfp)

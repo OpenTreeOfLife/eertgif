@@ -6,11 +6,13 @@ import json
 import logging
 import pickle
 import sys
+import os
 from threading import Lock
 from typing import List, Tuple
 
 
 from pdfminer.high_level import LAParams
+from pdfminer.image import ImageWriter
 from pdfminer.layout import (
     LTChar,
     LTFigure,
@@ -49,12 +51,13 @@ def find_text_and_curves(
     image_paths = []
     figures = []
     for el in fig:
+        # log.debug(f"el= {el}")
         if isinstance(el, LTChar):
             char_objs.append(el)
         elif isinstance(el, LTTextBox):
             for sel in el:
                 if isinstance(sel, LTTextLine):
-                    # log.debug(f"lttextline {el.bbox}")
+
                     text_lines.append(sel)
                 else:
                     log.debug(f"skipping element of type {type(el)} in textbox {el}")
@@ -538,12 +541,7 @@ class ExtractionManager(object):
         return tree
 
 
-def analyze_figure(fig, params=None, extract_cfg=None):
-    blob = find_text_and_curves(fig, params=params)
-    unproc_page = blob[0]
-    subfigures = blob[2]
-    if subfigures:
-        raise NotImplementedError("Figures within figures are not yet supported...")
+def print_and_return_tree(extract_cfg, unproc_page):
     extract_mgr = ExtractionManager(unproc_page, extract_cfg=extract_cfg)
     return extract_mgr.analyze_print_and_return_tree()
 
@@ -590,25 +588,28 @@ def _process_figures(
             fig, params=params, image_writer=image_writer, pdf_interpret=pdf_interpret
         )
         image_paths.extend(imgs)
-        subpage_n = prev_fn + fn
+        subpage_n += 1
         if unproc_page.has_content:
             unproc_page.page_num = n
-            unproc_page.subpage_num = fn + prev_fn
+            unproc_page.subpage_num = fn + subpage_n
             ur.append(unproc_page)
+            log.debug(
+                f"Added UnprocessedRegion {unproc_page.tag} n={n} subpage_n={subpage_n} fn={fn} prev_fn={prev_fn}"
+            )
         subfigures.extend(subfig_list)
+
     return subfigures, subpage_n
 
 
 def get_regions_unprocessed(filepath, params=None, image_writer=None):
-    ur = []
-    image_paths = []
+    ur, image_paths = [], []
     for n, pag_tup in enumerate(my_extract_pages(filepath)):
         page_layout = pag_tup[0]
         pdf_interpret = pag_tup[1]
-        figures = [el for el in page_layout if isinstance(el, LTFigure)]
-        prev_fn = 0
+        figures = [page_layout]
+        prev_fn = -1  # pre-increment will cause first to be 0
         subfigures = []
-        if figures:
+        while figures:
             subfigures, prev_fn = _process_figures(
                 ur,
                 image_paths,
@@ -619,57 +620,18 @@ def get_regions_unprocessed(filepath, params=None, image_writer=None):
                 n,
                 prev_fn,
             )
-        else:
-            # try whole page as figure container
-            unproc_page, imgs, subfig_list = find_text_and_curves(
-                page_layout,
-                params=params,
-                image_writer=image_writer,
-                pdf_interpret=pdf_interpret,
-            )
-            image_paths.extend(imgs)
-            if unproc_page.has_content:
-                unproc_page.page_num = n
-                ur.append(unproc_page)
-            subfigures.extend(subfig_list)
-        if subfigures:
-            while subfigures:
-                subfigures, prev_fn = _process_figures(
-                    ur,
-                    image_paths,
-                    subfigures,
-                    params,
-                    image_writer,
-                    pdf_interpret,
-                    n,
-                    prev_fn,
-                )
+            figures = subfigures
     return ur, image_paths
 
 
-def main(fp, config_fp):
-    if fp == config_fp:
-        ec = ExtractionConfig()
-    else:
-        with open(config_fp, "r") as cinp:
-            obj = json.load(cinp)
-        ec = ExtractionConfig(obj)
-    return do_extraction(fp, extract_cfg=ec)
-
-
-def do_extraction(fp, extract_cfg):
+def do_extraction(fp, extract_cfg, image_writer=None):
     rc = 1
     if fp.endswith(".pdf"):
-        for page_tup in my_extract_pages(fp):
-            page_layout = page_tup[0]
-            figures = [el for el in page_layout if isinstance(el, LTFigure)]
-            if figures:
-                for fig in figures:
-                    if analyze_figure(fig, extract_cfg=extract_cfg) is not None:
-                        rc = 0
-            else:
-                if analyze_figure(page_layout, extract_cfg=extract_cfg) is not None:
-                    rc = 0
+        ur, images = get_regions_unprocessed(fp, image_writer=image_writer)
+        for region in ur:
+            tree = print_and_return_tree(extract_cfg, region)
+            if tree:
+                rc = 0
     elif fp.endswith(".pickle"):
         with open(fp, "rb") as pin:
             obj = pickle.load(pin)
@@ -683,6 +645,22 @@ def do_extraction(fp, extract_cfg):
         if em.analyze_print_and_return_tree() is not None:
             rc = 0
     return rc
+
+
+def main(fp, config_fp, image_dir=None):
+    if image_dir:
+        if not os.path.isdir(image_dir):
+            os.makedirs(image_dir)
+        iw = ImageWriter(image_dir)
+    else:
+        iw = None
+    if fp == config_fp:
+        ec = ExtractionConfig()
+    else:
+        with open(config_fp, "r") as cinp:
+            obj = json.load(cinp)
+        ec = ExtractionConfig(obj)
+    return do_extraction(fp, extract_cfg=ec, image_writer=iw)
 
 
 if __name__ == "__main__":

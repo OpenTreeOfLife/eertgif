@@ -331,6 +331,10 @@ def _safe_char(el):
         cidn = int(m.group(1))
         log.debug(f"inserting missing char instead of cid:{cidn} code")
         return REPLACE_CHAR
+    d = {"fi": "ﬁ", "fl": "ﬂ"}
+    rep = d.get(ch_text)
+    if rep:
+        return rep
     msg = f"multi-character LTChar/LTAnno text '{ch_text}' not matching cid pattern"
     log.debug(msg)
     raise RuntimeError(msg)
