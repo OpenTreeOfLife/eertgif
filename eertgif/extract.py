@@ -47,6 +47,7 @@ def find_text_and_curves(
     text_lines = []
     otherobjs = []
     image_paths = []
+    figures = []
     for el in fig:
         if isinstance(el, LTChar):
             char_objs.append(el)
@@ -60,11 +61,13 @@ def find_text_and_curves(
         elif isinstance(el, LTTextLine):
             # log.debug(f"lttextline {el.bbox}")
             text_lines.append(el)
+        elif isinstance(el, LTFigure):
+            figures.append(el)
         elif type(el) not in _skip_types:
             if isinstance(el, LTRect):
-                log.debug(f"LTRect with __dict__={el.__dict__}")
+                pass  # log.debug(f"LTRect with __dict__={el.__dict__}")
             elif not isinstance(el, LTCurve):
-                log.debug(f"obj of type {type(el)} with bbox={el.bbox}")
+                pass  # log.debug(f"obj of type {type(el)} with bbox={el.bbox}")
             otherobjs.append(el)
         else:
             if image_writer is not None and isinstance(el, LTImage):
@@ -82,6 +85,7 @@ def find_text_and_curves(
     return (
         UnprocessedRegion(text_lines, otherobjs, fig, pdf_interpret=pdf_interpret),
         image_paths,
+        figures,
     )
 
 
@@ -535,7 +539,11 @@ class ExtractionManager(object):
 
 
 def analyze_figure(fig, params=None, extract_cfg=None):
-    unproc_page = find_text_and_curves(fig, params=params)[0]
+    blob = find_text_and_curves(fig, params=params)
+    unproc_page = blob[0]
+    subfigures = blob[2]
+    if subfigures:
+        raise NotImplementedError("Figures within figures are not yet supported...")
     extract_mgr = ExtractionManager(unproc_page, extract_cfg=extract_cfg)
     return extract_mgr.analyze_print_and_return_tree()
 
@@ -572,6 +580,25 @@ def my_extract_pages(pdf_file, page_numbers=None):
             yield layout, interpreter, device, resource_manager
 
 
+def _process_figures(
+    ur, image_paths, figures, params, image_writer, pdf_interpret, n, prev_fn
+):
+    subfigures = []
+    subpage_n = prev_fn
+    for fn, fig in enumerate(figures):
+        unproc_page, imgs, subfig_list = find_text_and_curves(
+            fig, params=params, image_writer=image_writer, pdf_interpret=pdf_interpret
+        )
+        image_paths.extend(imgs)
+        subpage_n = prev_fn + fn
+        if unproc_page.has_content:
+            unproc_page.page_num = n
+            unproc_page.subpage_num = fn + prev_fn
+            ur.append(unproc_page)
+        subfigures.extend(subfig_list)
+    return subfigures, subpage_n
+
+
 def get_regions_unprocessed(filepath, params=None, image_writer=None):
     ur = []
     image_paths = []
@@ -579,22 +606,22 @@ def get_regions_unprocessed(filepath, params=None, image_writer=None):
         page_layout = pag_tup[0]
         pdf_interpret = pag_tup[1]
         figures = [el for el in page_layout if isinstance(el, LTFigure)]
+        prev_fn = 0
+        subfigures = []
         if figures:
-            for fn, fig in enumerate(figures):
-                unproc_page, imgs = find_text_and_curves(
-                    fig,
-                    params=params,
-                    image_writer=image_writer,
-                    pdf_interpret=pdf_interpret,
-                )
-                image_paths.extend(imgs)
-                if unproc_page.has_content:
-                    unproc_page.page_num = n
-                    unproc_page.subpage_num = fn
-                    ur.append(unproc_page)
+            subfigures, prev_fn = _process_figures(
+                ur,
+                image_paths,
+                figures,
+                params,
+                image_writer,
+                pdf_interpret,
+                n,
+                prev_fn,
+            )
         else:
             # try whole page as figure container
-            unproc_page, imgs = find_text_and_curves(
+            unproc_page, imgs, subfig_list = find_text_and_curves(
                 page_layout,
                 params=params,
                 image_writer=image_writer,
@@ -604,6 +631,19 @@ def get_regions_unprocessed(filepath, params=None, image_writer=None):
             if unproc_page.has_content:
                 unproc_page.page_num = n
                 ur.append(unproc_page)
+            subfigures.extend(subfig_list)
+        if subfigures:
+            while subfigures:
+                subfigures, prev_fn = _process_figures(
+                    ur,
+                    image_paths,
+                    subfigures,
+                    params,
+                    image_writer,
+                    pdf_interpret,
+                    n,
+                    prev_fn,
+                )
     return ur, image_paths
 
 

@@ -49,7 +49,10 @@ class SafeCurve(object):
         self.y1 = safe_number(lt_curve.y1)
         self.width = safe_number(lt_curve.width)
         self.height = safe_number(lt_curve.height)
-        self.linewidth = safe_number(lt_curve.linewidth)
+        try:
+            self.linewidth = safe_number(lt_curve.linewidth)
+        except:
+            self.linewidth = 1
         self.stroke = bool(lt_curve.stroke)
         self.fill = bool(lt_curve.fill)
         self.evenodd = bool(lt_curve.evenodd)
@@ -57,13 +60,19 @@ class SafeCurve(object):
         if lt_curve.stroking_color is None:
             self.stroking_color = None
         else:
-            self.stroking_color = [safe_number(i) for i in lt_curve.stroking_color]
+            try:
+                self.stroking_color = [safe_number(i) for i in lt_curve.stroking_color]
+            except:
+                self.stroking_color = safe_number(lt_curve.stroking_color)
         if lt_curve.non_stroking_color is None:
             self.non_stroking_color = None
         else:
-            self.non_stroking_color = [
-                safe_number(i) for i in lt_curve.non_stroking_color
-            ]
+            try:
+                self.non_stroking_color = [
+                    safe_number(i) for i in lt_curve.non_stroking_color
+                ]
+            except:
+                self.non_stroking_color = safe_number(lt_curve.non_stroking_color)
         self.pts = [(safe_number(x), safe_number(y)) for x, y in lt_curve.pts]
         # Note eff_diagonal (the effective) may contain bounding box points, any member of pts
         self.shape, self.eff_diagonal = self._diagnose_shape()
