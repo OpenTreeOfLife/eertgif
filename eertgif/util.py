@@ -6,7 +6,9 @@ from enum import IntEnum
 from math import sqrt
 from typing import List, Any, Tuple, Union, Iterable
 import re
-
+import os
+import time
+from threading import Thread
 from pdfminer.utils import Point, Rect
 
 log = logging.getLogger(__name__)
@@ -331,3 +333,48 @@ class ExtractionConfig(object):
         if key not in ExtractionConfig.all_keys:
             raise KeyError(f"{key} is not supported by ExtractionConfig")
         setattr(self, key, val)
+
+
+def sleep_til_can_remove(fp):
+    sleep_duration = 1
+    while os.path.exists(fp):
+        time.sleep(sleep_duration)
+        try:
+            os.remove(fp)
+        except:
+            pass
+        else:
+            return
+        if sleep_duration < 1024:
+            sleep_duration *= 2
+
+
+def win_safe_rename(src, dest):
+    try:
+        os.rename(src, dest)
+    except:
+        if os.path.exists(src):
+            shutil.copyfile(src, dest)
+            x = Thread(target=sleep_til_can_remove, args=(os.path.abspath(src),))
+            x.start()
+        else:
+            raise RuntimeError(f'"{src}" does not exist')
+
+
+def win_safe_remove(fp):
+    try:
+        os.remove(fp)
+    except:
+        if os.path.exists(fp):
+            x = Thread(target=sleep_til_can_remove, args=(os.path.abspath(fp),))
+            x.start()
+
+
+def next_uniq_fp(directory, prefix, suffix):
+    start = os.path.join(directory, prefix)
+    idx = 0
+    while True:
+        fp = f"{start}-v{idx}{suffix}"
+        if not os.path.exists(fp):
+            return fp
+        idx += 1

@@ -44,6 +44,7 @@ pairings = ${pairing_obj};
         <span class="bigbutton" onclick="extractTree()" display="none"><span>&nbsp;Attempt Tree Extraction&nbsp;</span></span>&nbsp;
         <span tal:condition="not phylo_stats">No trees extracted.</span>
         <span tal:condition="phylo_stats">1 tree with ${phylo_stats['ntips']} tips extracted. <span style="color:blue">Legend: ${phylo_stats['legend_str']}</span></span>
+        <span tal:condition="phylo_stats" class="bigbutton" onclick="downloadTree('${download_url}', '${tag}', '${region_id}')">Download Tree</span>
         
     </div>
 

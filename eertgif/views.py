@@ -10,10 +10,13 @@ from threading import Lock
 
 from pyramid.httpexceptions import HTTPConflict, HTTPBadRequest, HTTPFound, HTTPNotFound
 from pyramid.view import view_config
+from pyramid.response import FileResponse
 
 from pdfminer.image import ImageWriter
 from .extract import get_regions_unprocessed, UnprocessedRegion, ExtractionManager
 from .study_container import StudyContainer, RegionStatus
+from .util import win_safe_remove, win_safe_rename, next_uniq_fp, DisplayMode
+
 
 log = logging.getLogger("eertgif")
 
@@ -151,10 +154,12 @@ class EertgifView:
             with open(tmp_path, "wb") as empout:
                 obj.pickle(empout)
         except:
-            os.remove(tmp_path)
+            top_cont.blob["to_clean"].append(tmp_path)
+            win_safe_remove(tmp_path)
             raise
         with _upload_lock:
-            os.rename(tmp_path, orig_pickle_path)
+            top_cont.blob["to_clean"].append(tmp_path)
+            win_safe_rename(tmp_path, orig_pickle_path)
 
     @view_config(route_name="eertgif:home", renderer="templates/home.pt")
     def home_view(self):
@@ -190,6 +195,63 @@ class EertgifView:
             top_cont.page_status_list[idx] = validated_stat
         return HTTPFound(f"/view/{tag}?page={page_id}")
 
+    @view_config(route_name="eertgif:get_tree", request_method="GET")
+    def get_tree_view(self):
+        tag, page_id = self._get_tag_and_mandatory_page_id()
+        study_lock, top_cont = self._get_lock_and_top(tag)
+        with study_lock:
+            pages = list(top_cont.page_ids)
+            idx = top_cont.index_for_page_id(page_id)
+            page_status = list(top_cont.page_status_list)
+        if idx is None:
+            return HTTPNotFound(f"Region/Page {page_id} in {tag} does not exist.")
+        with study_lock:
+            try:
+                obj_for_region = top_cont.object_for_region(idx)
+            except RuntimeError as x:
+                log.exception("exception -> HTTPConflict")
+                return HTTPConflict(
+                    "Unknown error, please report this and the eertgif.log to developers"
+                )
+            if not isinstance(obj_for_region, ExtractionManager):
+                em = self._convert_obj_to_em(obj_for_region, page_id, idx, top_cont)
+            else:
+                em = obj_for_region
+            if em.display_mode != DisplayMode.PHYLO:
+                em.extract_trees()
+            if em.best_tree is None:
+                return HTTPConflict("No tree could be extracted for this page/region.")
+            fp = next_uniq_fp(top_cont.par_dir, f"tree-{page_id}", ".tre")
+            with open(fp, "w") as fout:
+                em.best_tree.root.write_newick(fout, em.edge_len_scaler)
+            self._add_to_to_clean([fp], top_cont)
+        response = FileResponse(fp, request=self.request, content_type="text/plain")
+        return response
+
+    def _add_to_to_clean(self, fn_list, top_cont):
+        """Assumes caller has study_lock, but NOT _upload_lock !"""
+        with _upload_lock:
+            top_cont.blob.setdefault("to_clean", []).extend(fn_list)
+            _serialize_info_blob_unlocked(top_cont.blob, top_cont.par_dir)
+
+    def _convert_obj_to_em(self, obj_for_region, page_id, idx, top_cont):
+        """Assumes caller has study_lock, but NOT _upload_lock !"""
+        em = ExtractionManager(obj_for_region)
+        top_cont.set_object_for_region(idx, em)
+        pd = top_cont.par_dir
+        unproc_pickle_path = os.path.join(pd, f"unproc{page_id}.pickle")
+        if not os.path.isfile(unproc_pickle_path):
+            orig_pickle_path = os.path.join(pd, f"{page_id}.pickle")
+            empout, tmp_path = tempfile.mkstemp(dir=top_cont.par_dir)
+            tmp_path = os.path.abspath(tmp_path)
+            with open(tmp_path, "wb") as empout:
+                em.pickle(empout)
+            win_safe_rename(orig_pickle_path, unproc_pickle_path)
+            win_safe_rename(tmp_path, orig_pickle_path)
+            fn_list = [orig_pickle_path, tmp_path, unproc_pickle_path]
+            self._add_to_to_clean(fn_list, top_cont)
+        return em
+
     def _common_extract(self, tag, page_id):
         study_lock, top_cont = self._get_lock_and_top(tag)
         with study_lock:
@@ -213,26 +275,7 @@ class EertgifView:
                     "Unknown error, please report this and the eertgif.log to developers"
                 )
             if isinstance(obj_for_region, UnprocessedRegion):
-                em = ExtractionManager(obj_for_region)
-                top_cont.set_object_for_region(idx, em)
-                unproc_pickle_path = os.path.join(
-                    top_cont.par_dir, f"unproc{page_id}.pickle"
-                )
-                if not os.path.isfile(unproc_pickle_path):
-                    orig_pickle_path = os.path.join(
-                        top_cont.par_dir, f"{page_id}.pickle"
-                    )
-                    empout, tmp_path = tempfile.mkstemp(dir=top_cont.par_dir)
-                    with open(tmp_path, "wb") as empout:
-                        em.pickle(empout)
-
-                    with _upload_lock:
-                        os.rename(orig_pickle_path, unproc_pickle_path)
-                        os.rename(tmp_path, orig_pickle_path)
-                        top_cont.blob.setdefault("to_clean", []).append(
-                            unproc_pickle_path
-                        )
-                        _serialize_info_blob_unlocked(top_cont.blob, top_cont.par_dir)
+                em = self._convert_obj_to_em(obj_for_region, page_id, idx, top_cont)
             else:
                 assert isinstance(obj_for_region, ExtractionManager)
                 em = obj_for_region
@@ -240,6 +283,7 @@ class EertgifView:
 
     def _common_extract_return(self, em, tag, page_id, status):
         pairing_obj = {}
+        tree_extracted = False
         if isinstance(em, UnprocessedRegion) or em.best_tree is None:
             phylo_stats = {}
         else:
@@ -258,7 +302,11 @@ class EertgifView:
             else:
                 phylo_stats["legend_str"] = "not found"
             pairing_obj = em.create_pairings()
+            tree_extracted = True
         svg = em.as_svg_str(pairing_obj)
+        d_url = self.request.route_url(
+            "eertgif:get_tree", tag=tag, _query={"page": page_id}
+        )
         d = {
             "tag": tag,
             "region_id": page_id,
@@ -268,6 +316,8 @@ class EertgifView:
             "cfg": em.cfg,
             "phylo_stats": phylo_stats,
             "pairing_obj": pairing_obj,
+            "tree_extracted": pairing_obj,
+            "download_url": d_url,
         }
         return d
 
@@ -461,7 +511,8 @@ class EertgifView:
                 shutil.copyfileobj(input_file, output_file)
 
             # Now that we know the file has been fully saved to disk move it into place.
-            os.rename(temp_file_path, file_path)
+            to_clean.append(temp_file_path)
+            win_safe_rename(temp_file_path, file_path)
             to_clean.append(file_path)
 
             img_dir = os.path.join(dest_dir, "img")
@@ -535,7 +586,7 @@ def clean_files_and_dir_no_raise(to_clean, dest_dir):
             if os.path.isdir(fp):
                 dirs_to_rm.append(fp)
             else:
-                os.remove(fp)
+                win_safe_remove(fp)
 
         except:
             log.exception(f'Temp file "{fp}" could not be deleted.')
