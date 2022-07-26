@@ -26,6 +26,22 @@ def parse_dim(dim_str):
     return float(dim_str[:-2])
 
 
+class HocrParser(HTMLParser):
+    def __init__(self):
+        HTMLParser.__init__(self)
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "span":
+            adict = dict(attrs)
+            sclass = adict.get("class", "")
+            if sclass == "ocr_line":
+                self._start_line()
+            elif sclass == "ocr_word":
+                self._add_word(tag)
+
+        print(f"Skipping tag={tag}")
+
+
 class SVGParser(HTMLParser):
     def __init__(self):
         self.width = None
@@ -116,6 +132,9 @@ def main(svg_in_fp, hocr_in_fp, out_fp):
         svg_parser.feed(sinp.read())
     svg_parser.transform_paths()
 
+    hocr_parser = HocrParser()
+    with open(hocr_in_fp, "r") as sinp:
+        hocr_parser.feed(sinp.read())
     return 0
 
 
