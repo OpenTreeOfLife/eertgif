@@ -29,17 +29,51 @@ def parse_dim(dim_str):
 class HocrParser(HTMLParser):
     def __init__(self):
         HTMLParser.__init__(self)
+        self.lines = []
+        self.current_line = []
+        self.current_word = {}
+        self.in_word = False
+
+    def _start_line(self):
+        if self.current_line:
+            self.lines.append(self.current_line)
+            self.current_line = []
+
+    def _add_word(self, att_dict):
+        if self.current_word:
+            self.current_line.append(self.current_word)
+            self.current_word = {}
+        if 'title' in self.current_word:
+            log.debug(f'c={self.current_word}  a={att_dict}')
+            assert 'title' not in self.current_word
+        self.current_word.update(att_dict)
 
     def handle_starttag(self, tag, attrs):
+        self.in_word = False
         if tag == "span":
             adict = dict(attrs)
             sclass = adict.get("class", "")
-            if sclass == "ocr_line":
+            if sclass == "ocrx_word":
+                self.in_word = True
+                self._add_word(adict)
+                return
+            elif sclass == "ocr_line":
                 self._start_line()
-            elif sclass == "ocr_word":
-                self._add_word(tag)
+                return
+        print(f"Skipping tag={tag} atts={attrs}")
 
-        print(f"Skipping tag={tag}")
+    def handle_data(self, data):
+        if self.in_word:
+            self.current_word["text"] = self.current_word.get('text', '') + data
+
+    def handle_endtag(self, tag):
+        if tag == 'span' and self.in_word:
+            self.in_word = False
+            self.current_line.append(self.current_word)
+            self.current_word = {}
+
+    def handle_entity_ref(self, name):
+        raise ValueError(f"entity_ref={name}")
 
 
 class SVGParser(HTMLParser):
@@ -135,6 +169,7 @@ def main(svg_in_fp, hocr_in_fp, out_fp):
     hocr_parser = HocrParser()
     with open(hocr_in_fp, "r") as sinp:
         hocr_parser.feed(sinp.read())
+    log.debug(hocr_parser.lines)
     return 0
 
 
