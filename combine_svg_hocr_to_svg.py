@@ -43,10 +43,18 @@ class HocrParser(HTMLParser):
         if self.current_word:
             self.current_line.append(self.current_word)
             self.current_word = {}
-        if 'title' in self.current_word:
+        if 'bbox' in self.current_word:
             log.debug(f'c={self.current_word}  a={att_dict}')
             assert 'title' not in self.current_word
-        self.current_word.update(att_dict)
+        title_str = att_dict['title']
+        ts_sp = title_str.split(';')
+        bbox_str = ts_sp[0]
+        pref = 'bbox '
+        assert bbox_str.startswith(pref)
+        nums = bbox_str[len(pref):].strip()
+        num_spl = nums.split(' ')
+        assert len(num_spl) == 4
+        self.current_word['bbox'] = [int(i) for i in num_spl]
 
     def handle_starttag(self, tag, attrs):
         self.in_word = False
