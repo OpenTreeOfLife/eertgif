@@ -21,6 +21,7 @@ requires = [
     'WebTest',
     'pdfminer.six',
     'Pillow >= 9.2.0',
+    'svg-path>=6.2',
 ]
 
 dev_requires = [
