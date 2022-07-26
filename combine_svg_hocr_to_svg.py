@@ -176,11 +176,66 @@ class SVGParser(HTMLParser):
         log.debug(f"Skipping tag: {tag}")
 
 
+_start_bbox = (float("inf"), float("inf"), float("-inf"), float("-inf"))
+
+def get_bb_for_el(el):
+    if isinstance(el, Move):
+        return [el.start.real, el.start.imag, el.start.real, el.start.imag, ]
+    if isinstance(el, Close) or isinstance(el, Line):
+        x1, x2 = el.start.real, el.end.real
+        y1, y2 = el.start.imag, el.end.imag
+        if x2 < x1:
+            x1, x2 = x2, x1
+        if y2 < y1:
+            y1, y2 = y2, y1
+        return [x1, y1, x2, y2]
+    if isinstance(el, CubicBezier):
+        x1, x2 = el.start.real, el.end.real
+        y1, y2 = el.start.imag, el.end.imag
+        if x2 < x1:
+            x1, x2 = x2, x1
+        if y2 < y1:
+            y1, y2 = y2, y1
+        for i in range(1, 50):
+            pt = el.point(1/50.0)
+            px, py = pt.real, pt.imag
+            if px < x1:
+                x1 = px
+            elif px > x2:
+                x2 = px
+            if py < y1:
+                y1 = py
+            elif py > y2:
+                y2 = py
+        return [x1, y1, x2, y2]
+    assert False
+
+def expand_bbox(bb1, bb2):
+    return [min(bb1[0], bb2[0]),
+            min(bb1[1], bb2[1]),
+            max(bb1[2], bb2[2]),
+            max(bb1[3], bb2[3]),
+            ]
+
+def calc_bounding_box(path):
+    bbox = None
+    for part in path:
+        nbb = get_bb_for_el(part)
+        if bbox is None:
+            bbox = nbb
+        else:
+            bbox = expand_bbox(bbox, nbb)
+    path.bbox = bbox
+    print(bbox)
+
 def main(svg_in_fp, hocr_in_fp, out_fp):
     svg_parser = SVGParser()
     with open(svg_in_fp, "r") as sinp:
         svg_parser.feed(sinp.read())
     svg_parser.transform_paths()
+    for path in svg_parser.paths:
+        calc_bounding_box(path)
+
 
     hocr_parser = HocrParser()
     with open(hocr_in_fp, "r") as sinp:
