@@ -80,6 +80,14 @@ class HocrParser(HTMLParser):
             self.current_line.append(self.current_word)
             self.current_word = {}
 
+    def done(self):
+        if self.current_word:
+            self.current_line.append(self.current_word)
+            self.current_word = {}
+        if self.current_line:
+            self.lines.append(self.current_line)
+            self.current_line = []
+
     def handle_entity_ref(self, name):
         raise ValueError(f"entity_ref={name}")
 
@@ -177,6 +185,7 @@ def main(svg_in_fp, hocr_in_fp, out_fp):
     hocr_parser = HocrParser()
     with open(hocr_in_fp, "r") as sinp:
         hocr_parser.feed(sinp.read())
+    hocr_parser.done()
     log.debug(hocr_parser.lines)
     return 0
 
