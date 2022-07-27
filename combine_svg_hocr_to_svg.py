@@ -20,6 +20,10 @@ for logger in loggers:
     logger.setLevel(logging.DEBUG)
     logger.addHandler(h)
 
+SVG_HEADER = """<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN"
+ "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+ """
 
 def parse_dim(dim_str):
     assert dim_str.endswith("pt")
@@ -30,9 +34,37 @@ class HocrParser(HTMLParser):
     def __init__(self):
         HTMLParser.__init__(self)
         self.lines = []
+        self.line_bboxes = []
         self.current_line = []
         self.current_word = {}
         self.in_word = False
+
+    def write_text(self, out_stream):
+        for line in self.lines:
+            for word in line:
+                bbox = word['bbox']
+                x = bbox[0]
+                y =  (bbox[1] + bbox[3])/2
+                length = bbox[2] - x
+                height = int(bbox[3] - bbox[1] + .4)
+                text = word.get('text', '')
+                out_stream.write(f'  <text x="{x}" y="{y}" textLength="{length}" textAdjust="spacingAndGlyphs" font-size="{height}px">{text}</text>\n')
+    
+    def hides(self, path):
+        x0, y0, x1, y1 = path.bbox
+        for lbbox in self.line_bboxes:
+            lx0, ly0, lx1, ly1 = lbbox
+            pad = 1
+            if x0 < lx0 - pad:
+                continue
+            if y0 < ly0 - pad:
+                continue
+            if x1 > lx1 + pad:
+                continue
+            if y1 > ly1 + pad:
+                continue
+            return True
+        return False
 
     def _start_line(self):
         if self.current_line:
@@ -87,6 +119,15 @@ class HocrParser(HTMLParser):
         if self.current_line:
             self.lines.append(self.current_line)
             self.current_line = []
+        self.calc_line_bboxes()
+
+    def calc_line_bboxes(self):
+        self.line_bboxes = []
+        for line in self.lines:
+            bbox = line[0]['bbox']
+            for word in line[1:]:
+                bbox = expand_bbox(bbox, word['bbox'])
+            self.line_bboxes.append(bbox)
 
     def handle_entity_ref(self, name):
         raise ValueError(f"entity_ref={name}")
@@ -101,7 +142,17 @@ class SVGParser(HTMLParser):
         self.scale_x = 1.0
         self.scale_y = 1.0
         self.paths = []
+        self.hidden = []
+        self.svg_el_atts = None
         HTMLParser.__init__(self)
+
+    def write_paths(self, out_stream):
+        for path in self.paths:
+            out_stream.write(f'  <path d="{path.d()}" />')
+
+    def get_svg_atts_str(self):
+        slist = [f'{i[0]}="{i[1]}"' for i in self.svg_el_atts]
+        return ' '.join(slist) 
 
     def _parse_g_transform(self, tstr):
         tsp = tstr.split()
@@ -157,6 +208,7 @@ class SVGParser(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         if tag == "svg":
+            self.svg_el_atts = list(attrs)
             adict = dict(attrs)
             self.height = parse_dim(adict["height"])
             self.width = parse_dim(adict["width"])
@@ -226,7 +278,7 @@ def calc_bounding_box(path):
         else:
             bbox = expand_bbox(bbox, nbb)
     path.bbox = bbox
-    print(bbox)
+    # print(bbox)
 
 def main(svg_in_fp, hocr_in_fp, out_fp):
     svg_parser = SVGParser()
@@ -241,7 +293,28 @@ def main(svg_in_fp, hocr_in_fp, out_fp):
     with open(hocr_in_fp, "r") as sinp:
         hocr_parser.feed(sinp.read())
     hocr_parser.done()
-    log.debug(hocr_parser.lines)
+
+    #log.debug(hocr_parser.lines)
+
+    svg_p_copy = list(svg_parser.paths)
+    idx_hidden = []
+    for n, path in enumerate(svg_p_copy):
+        if hocr_parser.hides(path):
+            idx_hidden.append(n)
+    idx_hidden.sort(reverse=True)
+    for idx in idx_hidden:
+        path = svg_parser.paths.pop(idx)
+        svg_parser.hidden.insert(0, path)
+
+    with open(out_fp, "w") as outp:
+        outp.write(SVG_HEADER)
+        atts_str = svg_parser.get_svg_atts_str()
+        outp.write(f'<svg {atts_str}>\n<g fill="#000000" stroke="none">')
+        svg_parser.write_paths(outp)
+        outp.write('</g>\n')
+        hocr_parser.write_text(outp)
+        outp.write("</svg>\n")
+
     return 0
 
 
