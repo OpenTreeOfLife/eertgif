@@ -25,6 +25,7 @@ SVG_HEADER = """<?xml version="1.0" standalone="no"?>
  "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
  """
 
+
 def parse_dim(dim_str):
     assert dim_str.endswith("pt")
     return float(dim_str[:-2])
@@ -42,14 +43,16 @@ class HocrParser(HTMLParser):
     def write_text(self, out_stream):
         for line in self.lines:
             for word in line:
-                bbox = word['bbox']
+                bbox = word["bbox"]
                 x = bbox[0]
-                y =  (bbox[1] + bbox[3])/2
+                y = (bbox[1] + bbox[3]) / 2
                 length = bbox[2] - x
-                height = int(bbox[3] - bbox[1] + .4)
-                text = word.get('text', '')
-                out_stream.write(f'  <text x="{x}" y="{y}" textLength="{length}" textAdjust="spacingAndGlyphs" font-size="{height}px">{text}</text>\n')
-    
+                height = int(bbox[3] - bbox[1] + 0.4)
+                text = word.get("text", "")
+                out_stream.write(
+                    f'  <text x="{x}" y="{y}" textLength="{length}" textAdjust="spacingAndGlyphs" font-size="{height}px">{text}</text>\n'
+                )
+
     def hides(self, path):
         x0, y0, x1, y1 = path.bbox
         for lbbox in self.line_bboxes:
@@ -75,18 +78,18 @@ class HocrParser(HTMLParser):
         if self.current_word:
             self.current_line.append(self.current_word)
             self.current_word = {}
-        if 'bbox' in self.current_word:
-            log.debug(f'c={self.current_word}  a={att_dict}')
-            assert 'title' not in self.current_word
-        title_str = att_dict['title']
-        ts_sp = title_str.split(';')
+        if "bbox" in self.current_word:
+            log.debug(f"c={self.current_word}  a={att_dict}")
+            assert "title" not in self.current_word
+        title_str = att_dict["title"]
+        ts_sp = title_str.split(";")
         bbox_str = ts_sp[0]
-        pref = 'bbox '
+        pref = "bbox "
         assert bbox_str.startswith(pref)
-        nums = bbox_str[len(pref):].strip()
-        num_spl = nums.split(' ')
+        nums = bbox_str[len(pref) :].strip()
+        num_spl = nums.split(" ")
         assert len(num_spl) == 4
-        self.current_word['bbox'] = [int(i) for i in num_spl]
+        self.current_word["bbox"] = [int(i) for i in num_spl]
 
     def handle_starttag(self, tag, attrs):
         self.in_word = False
@@ -104,10 +107,10 @@ class HocrParser(HTMLParser):
 
     def handle_data(self, data):
         if self.in_word:
-            self.current_word["text"] = self.current_word.get('text', '') + data
+            self.current_word["text"] = self.current_word.get("text", "") + data
 
     def handle_endtag(self, tag):
-        if tag == 'span' and self.in_word:
+        if tag == "span" and self.in_word:
             self.in_word = False
             self.current_line.append(self.current_word)
             self.current_word = {}
@@ -124,9 +127,9 @@ class HocrParser(HTMLParser):
     def calc_line_bboxes(self):
         self.line_bboxes = []
         for line in self.lines:
-            bbox = line[0]['bbox']
+            bbox = line[0]["bbox"]
             for word in line[1:]:
-                bbox = expand_bbox(bbox, word['bbox'])
+                bbox = expand_bbox(bbox, word["bbox"])
             self.line_bboxes.append(bbox)
 
     def handle_entity_ref(self, name):
@@ -152,7 +155,7 @@ class SVGParser(HTMLParser):
 
     def get_svg_atts_str(self):
         slist = [f'{i[0]}="{i[1]}"' for i in self.svg_el_atts]
-        return ' '.join(slist) 
+        return " ".join(slist)
 
     def _parse_g_transform(self, tstr):
         tsp = tstr.split()
@@ -230,9 +233,10 @@ class SVGParser(HTMLParser):
 
 _start_bbox = (float("inf"), float("inf"), float("-inf"), float("-inf"))
 
+
 def get_bb_for_el(el):
     if isinstance(el, Move):
-        return [el.start.real, el.start.imag, el.start.real, el.start.imag, ]
+        return [el.start.real, el.start.imag, el.start.real, el.start.imag]
     if isinstance(el, Close) or isinstance(el, Line):
         x1, x2 = el.start.real, el.end.real
         y1, y2 = el.start.imag, el.end.imag
@@ -249,7 +253,7 @@ def get_bb_for_el(el):
         if y2 < y1:
             y1, y2 = y2, y1
         for i in range(1, 50):
-            pt = el.point(1/50.0)
+            pt = el.point(1 / 50.0)
             px, py = pt.real, pt.imag
             if px < x1:
                 x1 = px
@@ -262,12 +266,15 @@ def get_bb_for_el(el):
         return [x1, y1, x2, y2]
     assert False
 
+
 def expand_bbox(bb1, bb2):
-    return [min(bb1[0], bb2[0]),
-            min(bb1[1], bb2[1]),
-            max(bb1[2], bb2[2]),
-            max(bb1[3], bb2[3]),
-            ]
+    return [
+        min(bb1[0], bb2[0]),
+        min(bb1[1], bb2[1]),
+        max(bb1[2], bb2[2]),
+        max(bb1[3], bb2[3]),
+    ]
+
 
 def calc_bounding_box(path):
     bbox = None
@@ -280,6 +287,7 @@ def calc_bounding_box(path):
     path.bbox = bbox
     # print(bbox)
 
+
 def main(svg_in_fp, hocr_in_fp, out_fp):
     svg_parser = SVGParser()
     with open(svg_in_fp, "r") as sinp:
@@ -288,13 +296,12 @@ def main(svg_in_fp, hocr_in_fp, out_fp):
     for path in svg_parser.paths:
         calc_bounding_box(path)
 
-
     hocr_parser = HocrParser()
     with open(hocr_in_fp, "r") as sinp:
         hocr_parser.feed(sinp.read())
     hocr_parser.done()
 
-    #log.debug(hocr_parser.lines)
+    # log.debug(hocr_parser.lines)
 
     svg_p_copy = list(svg_parser.paths)
     idx_hidden = []
@@ -311,7 +318,7 @@ def main(svg_in_fp, hocr_in_fp, out_fp):
         atts_str = svg_parser.get_svg_atts_str()
         outp.write(f'<svg {atts_str}>\n<g fill="#000000" stroke="none">')
         svg_parser.write_paths(outp)
-        outp.write('</g>\n')
+        outp.write("</g>\n")
         hocr_parser.write_text(outp)
         outp.write("</svg>\n")
 
