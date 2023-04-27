@@ -506,7 +506,13 @@ class MatchingStats(object):
     def score(self, leaf, label):
         calc_x, calc_y = self.pma.calc_x, self.pma.calc_y
         x_off = calc_x(label) - leaf.x
-        norm_x_off = ((x_off - self.x_off_mean) / self.x_off_sd) ** 2
+        try:
+            norm_x_off = ((x_off - self.x_off_mean) / self.x_off_sd) ** 2
+        except ZeroDivisionError:
+            norm_x_off = 0.0
         y_off = calc_y(label) - leaf.y
-        norm_y_off = ((y_off - self.y_off_mean) / self.y_off_sd) ** 2
+        try:
+            norm_y_off = ((y_off - self.y_off_mean) / self.y_off_sd) ** 2
+        except ZeroDivisionError:
+            norm_y_off = 0.0
         return sum([norm_x_off, norm_y_off])
