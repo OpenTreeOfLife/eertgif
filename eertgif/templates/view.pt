@@ -56,7 +56,7 @@ var pairings = null;
     <script>
 extract_config = JSON.parse('{"orientation": "right", "is_rect_shape": true}');
     </script>
-        <div id="tree-button-div"><span class="button" onclick="toggleCurveSimplify()"><span>Toggle curve simplification</span></span></div>
+        <!--div id="tree-button-div"><span class="button" onclick="toggleCurveSimplify()"><span>Toggle curve simplification</span></span></div!-->
 
         <div tal:condition="svg">
             <div id="treeholder" tal:content="structure svg"></div>
