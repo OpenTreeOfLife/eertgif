@@ -61,7 +61,7 @@ def _find_uploads(uploads_dir):
 def _lock_held_udict_from_list():
     """Fills _uploads_by_tag from _uploads. Caller must hold _upload_lock !
 
-    fills _uploads_by_tag """
+    fills _uploads_by_tag"""
     d = dict(_uploads_by_tag)
     _uploads_by_tag.clear()
     for u in _uploads:

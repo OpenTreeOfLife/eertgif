@@ -163,8 +163,7 @@ def mean_var(flist: List[float]) -> Tuple[Union[float, None], Union[float, None]
 
 
 def mean_vector(list_of_pairs):
-    """Return mean of ((second[0] - first[0]), (second[1] - first[1])) for each (first, second) pair in `list_of_pairs`
-    """
+    """Return mean of ((second[0] - first[0]), (second[1] - first[1])) for each (first, second) pair in `list_of_pairs`"""
     if not list_of_pairs:
         return 0.0, 0.0
     sum_x_diff, sum_y_diff = 0.0, 0.0

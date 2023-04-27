@@ -105,9 +105,14 @@ class PhyloMapAttempt(object):
             f"_try_as_tips_to DIR={repr(tip_dir)} {len(externals)} externals, len(inline_t)={len(inline_t)}"
         )
         blob = self._try_match_text(inline_t, externals)
-        matched_labels, orphan_labels, matched_dists, matched_leaves, unmatched_ext, by_lab = (
-            blob
-        )
+        (
+            matched_labels,
+            orphan_labels,
+            matched_dists,
+            matched_leaves,
+            unmatched_ext,
+            by_lab,
+        ) = blob
         if matched_labels:
             expected_def_gap = avg_char_width(matched_labels)
             mean_obs_gap, var_gap = mean_var(matched_dists)
@@ -135,9 +140,16 @@ class PhyloMapAttempt(object):
         #   if an external node and a text object are
         #   closest to each other, then we call them a match
         blob = self._match_by_mutual_closest(inline_t, externals)
-        match_pairs, matched_labels, matched_leaves, matched_dists, unmatched_labels, unmatched_lvs, by_lab, by_ext = (
-            blob
-        )
+        (
+            match_pairs,
+            matched_labels,
+            matched_leaves,
+            matched_dists,
+            unmatched_labels,
+            unmatched_lvs,
+            by_lab,
+            by_ext,
+        ) = blob
 
         self._match_more_using_offsets(
             match_pairs,
@@ -298,7 +310,7 @@ class PhyloMapAttempt(object):
         by_ext,
     ):
         """Second-level matching using the mean offset of primary matches
-        to find more cases of an external node and a text element being each 
+        to find more cases of an external node and a text element being each
         other's closest match."""
         calc_x, calc_y = self.calc_x, self.calc_y
 

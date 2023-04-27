@@ -4,7 +4,12 @@ import pickle
 from eertgif.safe_containers import UnprocessedRegion
 from eertgif.extract import ExtractionManager
 import logging
-loggers = [logging.getLogger(name) for name in logging.root.manager.loggerDict if name.startswith('eertgif')]
+
+loggers = [
+    logging.getLogger(name)
+    for name in logging.root.manager.loggerDict
+    if name.startswith("eertgif")
+]
 h = logging.StreamHandler()
 h.setLevel(logging.DEBUG)
 for logger in loggers:

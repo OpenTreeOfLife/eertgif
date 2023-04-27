@@ -97,9 +97,7 @@ class SafeCurve(object):
         in_corner_tol: float = CORNER_TOL,
         max_dim_non_line_like: float = BOX_TO_LINE_TOL,
     ) -> Tuple[CurveShape, Optional[Tuple[Point, Point]]]:
-        """called to fill in the "shape" attribute from bbox and points.
-
-        """
+        """called to fill in the "shape" attribute from bbox and points."""
         assert self.pts
         pts = self.pts
         if len(pts) == 1:
@@ -119,12 +117,12 @@ class SafeCurve(object):
 
     def _find_eff_diagnonal_for_small_dim_line_like(self, pts, corners):
         """Helper for _diagnose_corner_shaped called with width or height is tiny.
-        
+
         for a very narrow (or short) L-shaped curves it can be hard to diagnose shape.
         For example, if the shape traces a L with some width, it is possible that there
         will a point closest to each corner of the bounding box. Barring implementing
         a full fill-algorithm, we may be able to succeed by just diagnosing the general
-        direction of the shape. 
+        direction of the shape.
         Here (for non-LTRect shapes) we average the coordinate for 2 halves of the box
         to decide the effective diagonal.
         """
