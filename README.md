@@ -31,6 +31,23 @@ A JSON serialization object with properties:
   * `to_clean` list of filepaths (relative to the top of the repo) to be removed if the use removes the project.
   * `unprocessed` a list of pickled object for each region found in the pdf. Accessed called via the `object_for_region` method for the `StudyContainer`
 
+#### Upload view
+`ENDPOINT/view/tag` page with no query parameters shows a table of parsable regions detected. Clicking on one of them adds the `page=#-#` query parameter.
+
+#### Region view
+`ENDPOINT/view/tag?page=x-y` shows a view of
+region `y` of page `x` of upload `tag`.
+
+Use "Previous region" and "Next region" to navigate.
+
+Use "Flag as lacking tree" or "Begin extracting tree Next region" to either note that the region doesn't hold a tree or start trying to extract the tree.
+
+If you flag a region as lacking a tree, you have to "revert region status to 'unknown'" to undo that. These actions affect the "page_status_list" attribute of the upload's `info.json`
+
+#### 
+`ENDPOINT/extract/tag?page=x-y` shows controls for helping you guide a tree extraction from retgion `y` of page `x` of upload `tag`
+
+
 
 #### Credits
   * Relies heavily on [pdfminer.six](https://github.com/pdfminer/pdfminer.six)
