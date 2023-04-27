@@ -482,6 +482,10 @@ class MatchingStats(object):
                     abs(m), 10
                 )  # TODO Arbitrarily setting sd to 10 or mean.
         else:
+            try:
+                sv = sqrt(v)
+            except:
+                sv = 0.0
             self.x_off_mean, self.x_off_sd = m, sqrt(v)
         m, v = mean_var(y_off)
         if v is None:
@@ -493,7 +497,11 @@ class MatchingStats(object):
                     abs(m), 10
                 )  # TODO Arbitrarily setting sd to 10 or mean.
         else:
-            self.y_off_mean, self.y_off_sd = m, sqrt(v)
+            try:
+                sv = sqrt(v)
+            except:
+                sv = 0.0
+            self.y_off_mean, self.y_off_sd = m, 0.0
 
     def score(self, leaf, label):
         calc_x, calc_y = self.pma.calc_x, self.pma.calc_y
