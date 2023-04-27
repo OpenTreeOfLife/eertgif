@@ -622,7 +622,7 @@ window.svgDragSelectOptions = {
 	// selected_id_set.clear();
 	clearSelection();
 	var path = selectionStart.pointerEvent.path;
-	if (path.length && path[0].tagName !== "svg") {
+	if (path && path.length && path[0].tagName !== "svg") {
 		handleClickOnGraph(selectionStart.pointerEvent, path[0]);
 	}
 	},
