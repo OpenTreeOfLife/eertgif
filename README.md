@@ -29,7 +29,7 @@ A JSON serialization object with properties:
   * `page_status_list` list for each region of either {"no trees" | "unknown" }
   * `tag` holds the "nickname" that will be shown to the user and in URLs
   * `to_clean` list of filepaths (relative to the top of the repo) to be removed if the use removes the project.
-  * `unprocessed` a list of pickled object for each region found in the pdf. See `object_for_region` method for the `StudyContainer`
+  * `unprocessed` a list of pickled object for each region found in the pdf. Accessed called via the `object_for_region` method for the `StudyContainer`
 
 
 #### Credits

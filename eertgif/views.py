@@ -107,6 +107,11 @@ class ExtractActions:
 
 
 class EertgifView:
+    """An object that is initialized from the configuration (in the requests'
+    registry) to hold the list of uploads or handle the creation of a new
+    upload.
+    """
+
     def __init__(self, request):
         log.debug(f"{request.url} called with {request.method}")
         self.request = request
