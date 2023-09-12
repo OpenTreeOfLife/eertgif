@@ -385,7 +385,6 @@ class ExtractionManager(object):
         )
 
     def merge_component_using_rect_shape_joins(self):
-
         mergeable = self._find_mergeable_components_rect()
         for tup in mergeable:
             e1, most_extreme, e2, coord = tup[2:]
@@ -428,11 +427,19 @@ class ExtractionManager(object):
                     continue
                 if e2.component_idx == comp_idx:
                     continue
+
                 contains, coord, dist = e2.axis_contains(
                     base_axis, most_extreme, nm_tol
                 )
+
                 if contains:
+                    log.debug(
+                        f"  mergeable {(dist, e1.eertgif_id, e1, most_extreme, e2, coord)}"
+                    )
                     mergeable.append((dist, e1.eertgif_id, e1, most_extreme, e2, coord))
+                else:
+                    log.debug(f"  unmergeable {e1} and {e2}")
+
         mergeable.sort()
         return mergeable
 

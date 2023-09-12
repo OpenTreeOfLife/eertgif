@@ -58,6 +58,8 @@ class PhyloTree(object):
         lx, ly, hx, hy = float("inf"), float("inf"), float("-inf"), float("-inf")
         for nd in connected_nodes:
             cont = ext_nds if len(nd.edges) == 1 else int_nds
+            if len(nd.edges) > 1:
+                log.debug(f"nd{(nd.x, nd.y)} seems internal: nd.edges = {nd.edges}")
             cont.append(nd)
             lx = min(lx, nd.x)
             ly = min(ly, nd.y)

@@ -16,7 +16,7 @@ class Node(object):
         self, x: float = None, y: float = None, loc: Point = None, id_gen=None
     ):
         self.eertgif_id = None if id_gen is None else id_gen.get_new_id()
-        # debug(f"created node at {(x, y)}")
+        log.debug(f"created node {self.eertgif_id} at {(x, y)}")
         if loc is None:
             assert x is not None
             assert y is not None
